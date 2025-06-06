@@ -3,6 +3,11 @@
 #include <vector>
 #include <array>
 #include <stdexcept>
+
+#include "Renderable.h"
+
+struct RenderableObject;
+
 class VulkanCommandBuffers
 {
 public:
@@ -21,10 +26,9 @@ public:
 		VkPipeline graphicsPipeline,
 		VkFramebuffer swapChainFramebuffer,
 		VkExtent2D swapChainExtent,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-		VkBuffer vertexBuffer,
-		VkBuffer indexBuffer,
-		uint32_t indices_size);
+		//const std::vector<VkDescriptorSet>& descriptorSets,
+		const std::vector<RenderableObject>& renderables,
+		VkDeviceSize dynamicUboAlignment);
 
 	static VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool);
 	static void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool);

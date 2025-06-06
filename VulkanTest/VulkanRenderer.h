@@ -16,6 +16,7 @@
 #include "VulkanUniformBuffers.h"
 #include "VulkanSyncObjects.h"
 #include "ModelLoader.h" // For Vertex, UniformBufferObject (if not in a separate header)
+#include "Renderable.h"
 
 // Forward declare if UniformBufferObject is defined elsewhere and you don't want to include the full header
 // struct UniformBufferObject;
@@ -30,12 +31,12 @@ public:
         VulkanGraphicsPipeline& graphicsPipeline,
         VulkanFramebuffers& framebuffers,
         VulkanCommandBuffers& commandBuffers,
-        VulkanDescriptorSets& descriptorSets,
+        /*VulkanDescriptorSets& descriptorSets,
         VulkanVertexBuffer& vertexBuffer,
-        VulkanIndexBuffer& indexBuffer,
+        VulkanIndexBuffer& indexBuffer,*/
         VulkanUniformBuffers& uniformBuffers,
         VulkanSyncObjects& syncObjects,
-        const std::vector<uint32_t>& indices, // For drawing
+        //const std::vector<uint32_t>& indices, // For drawing
         int maxFramesInFlight
     );
 
@@ -48,14 +49,18 @@ public:
     VulkanRenderer(VulkanRenderer&&) = delete;
     VulkanRenderer& operator=(VulkanRenderer&&) = delete;
 
+    uint32_t getCurrentFrame() const { return currentFrame; }
+
     // The main function to draw a frame
     // uboDataProvider: A function that returns the UBO for the current frame.
     // framebufferResized: A reference to the flag in the main application.
     // recreateSwapChainCallback: A function to call if the swapchain needs recreation from drawFrame.
     void drawFrame(
-        std::function<UniformBufferObject()> uboDataProvider,
+        std::function<FrameUniformBufferObject()> uboDataProvider,
         bool& framebufferResized,
-        std::function<void()> recreateSwapChainCallback
+        std::function<void()> recreateSwapChainCallback,
+        const std::vector<RenderableObject>& renderables,
+        VkDeviceSize dynamicUboAlignment
     );
 
 private:
@@ -67,13 +72,13 @@ private:
     VulkanGraphicsPipeline& vkGraphicsPipeline;
     VulkanFramebuffers& swapChainFramebuffersObj;
     VulkanCommandBuffers& vkCommandBuffers;
-    VulkanDescriptorSets& vkDescriptorSets;
-    VulkanVertexBuffer& vertexBufferObjRef;
-    VulkanIndexBuffer& indexBufferObjRef;
+    //VulkanDescriptorSets& vkDescriptorSets;
+    //VulkanVertexBuffer& vertexBufferObjRef;
+    //VulkanIndexBuffer& indexBufferObjRef;
     VulkanUniformBuffers& uniformBuffersObjRef;
     VulkanSyncObjects& syncObjectsRef;
 
-    const std::vector<uint32_t>& appIndices; // Store reference to indices for draw count
+    //const std::vector<uint32_t>& appIndices; // Store reference to indices for draw count
     const int MAX_FRAMES_IN_FLIGHT_RENDERER;
 
     uint32_t currentFrame = 0;

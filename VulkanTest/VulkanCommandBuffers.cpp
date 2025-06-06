@@ -28,18 +28,16 @@ void VulkanCommandBuffers::create(VkDevice vkdevice, VkCommandPool commandPool, 
 
 
 void VulkanCommandBuffers::recordCommandBuffer(
-	
 	VkCommandBuffer commandBuffer,
-	uint32_t currentFrame,
+	uint32_t currentFrameIndex,
 	VkRenderPass renderPass, 
 	VkPipelineLayout pipelineLayout, 
 	VkPipeline graphicsPipeline, 
 	VkFramebuffer swapChainFramebuffer, 
 	VkExtent2D swapChainExtent, 
-	const std::vector<VkDescriptorSet>& descriptorSets, 
-	VkBuffer vertexBuffer, 
-	VkBuffer indexBuffer, 
-	uint32_t indices_size)
+	//const std::vector<VkDescriptorSet>& descriptorSets, 
+	const std::vector<RenderableObject>& renderables,
+	VkDeviceSize dynamicUboAlignment)
 {
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -84,17 +82,33 @@ void VulkanCommandBuffers::recordCommandBuffer(
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	VkBuffer vertexBuffers[] = { vertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	//VkDescriptorSet currentDescriptorSet = descriptorSets[currentFrameIndex];
 
-	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	for (uint32_t i = 0; i < renderables.size(); i++)
+	{
+		const auto& renderable = renderables[i];
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+		if (!renderable.vertexBuffer || !renderable.indexBuffer) continue; // skip
 
-	vkCmdDrawIndexed(commandBuffer, indices_size, 1, 0, 0, 0);
+		VkBuffer vertexBuffers[] = { renderable.vertexBuffer->getVkBuffer() };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+		vkCmdBindIndexBuffer(commandBuffer, renderable.indexBuffer->getVkBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+		uint32_t dynamicOffset = i * static_cast<uint32_t>(dynamicUboAlignment);
+
+		VkDescriptorSet objectDescriptorSet = renderable.frameSpecificDescriptorSets[currentFrameIndex];
+
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+			0, 1, /*&currentDescriptorSet*/ &objectDescriptorSet,
+			1, &dynamicOffset);
+		
+		vkCmdDrawIndexed(commandBuffer, renderable.indexCount, 1, 0, 0, 0);
+	}
 
 	vkCmdEndRenderPass(commandBuffer);
+
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to record command buffer!");

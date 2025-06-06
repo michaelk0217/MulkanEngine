@@ -11,12 +11,15 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
+#include <map>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "VulkanGlobals.h"
 
 #include "Window.h"
 #include "VulkanInstance.h"
@@ -42,6 +45,7 @@
 #include "ModelLoader.h"
 
 #include "Camera.h"
+#include "Renderable.h"
 
 
 const uint32_t WIDTH = 800;
@@ -50,7 +54,7 @@ const uint32_t HEIGHT = 600;
 const std::string MODEL_PATH = "models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/viking_room.png";
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
+//const int MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
@@ -125,22 +129,13 @@ private:
 
 	bool framebufferResized = false;
 
-	uint32_t currentFrame = 0;
+	std::unique_ptr<VulkanDepthResources> depthResourceObj;
+
+	std::unique_ptr<VulkanRenderer> renderer;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
-
-	std::unique_ptr<VulkanVertexBuffer> vertexBufferObj;
-	std::unique_ptr<VulkanIndexBuffer> indexBufferObj;
-
-	std::unique_ptr<VulkanUniformBuffers> uniformBuffersObj;
-
-	std::unique_ptr<VulkanTexture> textureObj;
-
-	std::unique_ptr<VulkanDepthResources> depthResourceObj;
-
-	std::unique_ptr<VulkanRenderer> renderer;
 
 	std::unique_ptr<Camera> camera;
 
@@ -148,11 +143,27 @@ private:
 	float deltaTime = 0.0f;
 	float accumulatedTime = 0.0f;
 
+	// --- Collection of Model resources --- 
+
+	// mapped with mesh path string
+	std::map<std::string, std::unique_ptr<VulkanVertexBuffer>> loadedVertexBuffers;
+	std::map<std::string, std::unique_ptr<VulkanIndexBuffer>> loadedIndexBuffers;
+	std::map<std::string, std::uint32_t> meshIndexCounts;
+
+	// mapped with texture path string
+	std::map<std::string, std::unique_ptr<VulkanTexture>> loadedTextures;
+
+	std::vector<RenderableObject> renderableObjects;
+
+	std::unique_ptr<VulkanUniformBuffers> frameUboManager;
+	std::unique_ptr<VulkanUniformBuffers> objectDataDUBManager;
+	// -------------------------------------
+
 	void initWindow()
 	{
 
-		const uint32_t WIDTH_CONST = 1920;
-		const uint32_t HEIGHT_CONST = 1080;
+		const uint32_t WIDTH_CONST = 3840;
+		const uint32_t HEIGHT_CONST = 2160;
 		const std::string TITLE = "Vulkan";
 		try
 		{
@@ -219,32 +230,36 @@ private:
 		swapChainFramebuffers = std::make_unique<VulkanFramebuffers>();
 		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
 
-		textureObj = std::make_unique<VulkanTexture>();
-		textureObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), TEXTURE_PATH);
+		loadAssetsAndCreateRenderables();
 
-		ModelLoader::loadModel(MODEL_PATH, vertices, indices);
+		frameUboManager = std::make_unique<VulkanUniformBuffers>();
+		frameUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT);
 
-		vertexBufferObj = std::make_unique<VulkanVertexBuffer>();
-		vertexBufferObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(),
-			commandPool->getVkCommandPool(), vertices);
+		objectDataDUBManager = std::make_unique<VulkanUniformBuffers>();
+		objectDataDUBManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
+			VulkanUniformBuffers::totalObjectDataBufferSize(devices->getPhysicalDevice()),
+			true);
 
-		indexBufferObj = std::make_unique<VulkanIndexBuffer>();
-		indexBufferObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(),
-			commandPool->getVkCommandPool(), indices);
-
-		uniformBuffersObj = std::make_unique<VulkanUniformBuffers>();
-		uniformBuffersObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
 		descriptorPool = std::make_unique<VulkanDescriptorPool>();
-		descriptorPool->create(devices->getLogicalDevice(), MAX_FRAMES_IN_FLIGHT);
+		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, renderableObjects.size());
+
 		descriptorSets = std::make_unique<VulkanDescriptorSets>();
-		descriptorSets->create(devices->getLogicalDevice(), descriptorPool->getVkDescriptorPool(), descriptorSetLayout->getVkDescriptorSetLayout(), MAX_FRAMES_IN_FLIGHT, uniformBuffersObj->getBuffers(), textureObj->getImageView(), textureObj->getSampler());
+		descriptorSets->createForRenderables(
+			devices->getLogicalDevice(),
+			descriptorPool->getVkDescriptorPool(),
+			descriptorSetLayout->getVkDescriptorSetLayout(),
+			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
+			frameUboManager->getBuffers(),
+			objectDataDUBManager->getBuffers(),
+			renderableObjects
+		);
 
 		commandBuffers = std::make_unique<VulkanCommandBuffers>();
-		commandBuffers->create(devices->getLogicalDevice(), commandPool->getVkCommandPool(), MAX_FRAMES_IN_FLIGHT);
+		commandBuffers->create(devices->getLogicalDevice(), commandPool->getVkCommandPool(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT);
 
 		syncObjects = std::make_unique<VulkanSyncObjects>();
-		syncObjects->create(devices->getLogicalDevice(), MAX_FRAMES_IN_FLIGHT);
+		syncObjects->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, swapChainObj->getImageViews().size());
 
 		renderer = std::make_unique<VulkanRenderer>(
 			*devices,            // Pass by reference
@@ -254,13 +269,9 @@ private:
 			*graphicsPipeline,
 			*swapChainFramebuffers,
 			*commandBuffers,
-			*descriptorSets,
-			*vertexBufferObj,
-			*indexBufferObj,
-			*uniformBuffersObj,
+			*frameUboManager,
 			*syncObjects,
-			indices,             // Pass the actual indices vector
-			MAX_FRAMES_IN_FLIGHT
+			VulkanGlobals::MAX_FRAMES_IN_FLIGHT
 		);
 
 		camera = std::make_unique<Camera>(
@@ -294,10 +305,15 @@ private:
 			camera->processKeyboard(window->getKeys(), deltaTime);
 			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
 
+			uint32_t uboFrameIndex = renderer->getCurrentFrame();
+			updateObjectUniforms(uboFrameIndex);
+
 			renderer->drawFrame(
-				[this]() { return this->uboUpdate(); },
+				[this]() { return this->frameUboUpdate(); },
 				framebufferResized,
-				[this]() { return this->recreateSwapChain(); }
+				[this]() { return this->recreateSwapChain(); },
+				renderableObjects,
+				objectDataDUBManager->getDynamicAlignment()
 			);
 		}
 
@@ -325,17 +341,38 @@ private:
 
 		if (renderer) renderer.reset();
 
-		if (textureObj) textureObj->destroy();
-		textureObj.reset();
+	/*	if (textureObj) textureObj->destroy();
+		textureObj.reset();*/
 
-		if (uniformBuffersObj) uniformBuffersObj->destroy();
-		uniformBuffersObj.reset();
+		for (auto& pair : loadedVertexBuffers)
+		{
+			if (pair.second) pair.second->destroy();
+		}
+		loadedVertexBuffers.clear();
 
-		if (indexBufferObj) indexBufferObj->destroy();
+		for (auto& pair : loadedIndexBuffers)
+		{
+			if (pair.second) pair.second->destroy();
+		}
+		loadedIndexBuffers.clear();
+		for (auto& pair : loadedTextures)
+		{
+			if (pair.second) pair.second->destroy();
+		}
+		loadedTextures.clear();
+
+		if (frameUboManager) frameUboManager->destroy();
+		frameUboManager.reset();
+
+		if (objectDataDUBManager) objectDataDUBManager->destroy();
+		objectDataDUBManager.reset();
+
+		/*if (indexBufferObj) indexBufferObj->destroy();
 		indexBufferObj.reset();
 
 		if (vertexBufferObj) vertexBufferObj->destroy();
-		vertexBufferObj.reset();
+		vertexBufferObj.reset();*/
+
 
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
@@ -390,30 +427,119 @@ private:
 	}
 
 	// Update Uniform Buffers here
-	UniformBufferObject uboUpdate()
+	FrameUniformBufferObject frameUboUpdate()
 	{
-		static auto lastTime = std::chrono::high_resolution_clock::now();
+		// Time calculation
+		/*static auto lastTime = std::chrono::high_resolution_clock::now();
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();*/
 
+		FrameUniformBufferObject ubo{};
 
-		UniformBufferObject ubo{};
-
-		glm::mat4 zUpToYUpCorrection = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		/*glm::mat4 zUpToYUpCorrection = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
 		glm::mat4 modelBaseMatrix = zUpToYUpCorrection;
 
-		ubo.model = glm::rotate(modelBaseMatrix, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.model = glm::rotate(modelBaseMatrix, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));*/
 
-		//ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		ubo.view = camera->calculateViewMatrix();
-
-		//ubo.proj = glm::perspective(glm::radians(45.0f), swapChainObj->getExtent().width / (float)swapChainObj->getExtent().height, 0.1f, 10.0f);
 		ubo.proj = camera->getProjectionMatrix();
-		ubo.proj[1][1] *= -1;
+		ubo.proj[1][1] *= -1; // Vulkan's Y-coord is inverted in clip space
 
 		return ubo;
+	}
+
+	void loadAssetsAndCreateRenderables()
+	{
+		std::vector<SceneObjectDefinition> sceneDefinitions =
+		{
+			{"viking_room_1", MODEL_PATH, TEXTURE_PATH, glm::vec3(0.0f, 0.0f, 0.0f)},
+			{"viking_room_2", MODEL_PATH, TEXTURE_PATH, glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 45.0f)}
+		};
+
+		for (const auto& def : sceneDefinitions)
+		{
+			if (loadedVertexBuffers.find(def.meshPath) == loadedVertexBuffers.end()) // If mesh is not loaded
+			{
+				// --- Load/Get Mesh ---
+				std::vector<Vertex> vertices;
+				std::vector<uint32_t> indices;
+				ModelLoader::loadModel(def.meshPath, vertices, indices);
+
+				auto vb = std::make_unique<VulkanVertexBuffer>();
+				vb->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), vertices);
+				loadedVertexBuffers[def.meshPath] = std::move(vb);
+				 
+				auto ib = std::make_unique<VulkanIndexBuffer>();
+				ib->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), indices);
+				loadedIndexBuffers[def.meshPath] = std::move(ib);
+				meshIndexCounts[def.meshPath] = static_cast<uint32_t>(indices.size());
+			}
+
+			if (loadedTextures.find(def.texturePath) == loadedTextures.end()) // If texture is not loaded
+			{
+				// --- Load/Get Texture ---
+				auto tex = std::make_unique<VulkanTexture>();
+				tex->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.texturePath);
+				loadedTextures[def.texturePath] = std::move(tex);
+			}
+
+			// --- Create RenderableObject ---
+			RenderableObject renderable;
+			renderable.vertexBuffer = loadedVertexBuffers[def.meshPath].get();
+			renderable.indexBuffer = loadedIndexBuffers[def.meshPath].get();
+			renderable.indexCount = meshIndexCounts[def.meshPath];
+			renderable.texture = loadedTextures[def.texturePath].get();
+
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, def.position);
+			model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f)); // z axis
+			model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f)); // y axis
+			model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f)); // y axis
+			model = glm::scale(model, def.scale);
+			renderable.modelMatrix = model;
+
+			renderableObjects.push_back(renderable);
+		}
+	}
+
+	void updateObjectUniforms(uint32_t currentFrameIndex)
+	{
+		if (!objectDataDUBManager || renderableObjects.empty())
+		{
+			return;
+		}
+
+		// Optional: Z-up to Y-up correction if your models are Z-up
+		// and you want to apply it uniformly before individual object transforms.
+		glm::mat4 coordinateSystemCorrection = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+		for (uint32_t i = 0; i < renderableObjects.size(); ++i)
+		{
+			const auto& renderable = renderableObjects[i];
+			ObjectUniformBufferObject objectUbo{};
+			// The modelMatrix in RenderableObject should be its complete world transform
+			// If you applied a global rotation (like the spinning viking room) previously
+			// in the FrameUniformBufferObject, that logic should now be applied here
+			// to each renderableObject's modelMatrix if desired.
+
+			// Example: If renderable.modelMatrix is just the static placement
+			// and you want to add a dynamic rotation like before:
+			// float time = accumulatedTime; // Or pass time specifically
+			// glm::mat4 dynamicRotation = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+			// objectUbo.model = dynamicRotation * renderable.modelMatrix;
+
+
+			// Assuming renderable.modelMatrix is what you want to render
+			//objectUbo.model = renderable.modelMatrix;
+
+			// If coordinateSystemCorrection is needed and not already baked into renderabel.modelMatrix:
+
+			objectUbo.model = coordinateSystemCorrection * renderable.modelMatrix;
+
+			objectDataDUBManager->updateDynamic(currentFrameIndex, i, objectUbo);
+		}
 	}
 };
 

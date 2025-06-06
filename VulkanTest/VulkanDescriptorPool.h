@@ -8,7 +8,7 @@ public:
 	VulkanDescriptorPool();
 	~VulkanDescriptorPool();
 
-	void create(VkDevice vkdevice, uint32_t maxFramesInFlight);
+	void create(VkDevice vkdevice, uint32_t maxFramesInFlight, uint32_t objectCount);
 	void destroy();
 
 	VkDescriptorPool getVkDescriptorPool() const;

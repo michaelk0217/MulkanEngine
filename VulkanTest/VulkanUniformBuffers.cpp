@@ -1,6 +1,8 @@
 #include "VulkanUniformBuffers.h"
 
-VulkanUniformBuffers::VulkanUniformBuffers() : uniformBuffers({}), uniformBuffersMemory({}), uniformBuffersMapped({}), device(VK_NULL_HANDLE), frameCount(0)
+VulkanUniformBuffers::VulkanUniformBuffers() 
+	: uniformBuffers({}), uniformBuffersMemory({}), uniformBuffersMapped({}), 
+	device(VK_NULL_HANDLE), frameCount(0), isDynamic(false), dynamicAlignment(0)
 {
 }
 
@@ -9,32 +11,62 @@ VulkanUniformBuffers::~VulkanUniformBuffers()
 	destroy();
 }
 
-void VulkanUniformBuffers::create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames)
+void VulkanUniformBuffers::create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames,
+									VkDeviceSize totalBufferSize,
+										bool isDynamic)
 {
 	device = vkdevice;
 	frameCount = numFrames;
+	this->isDynamic = isDynamic;
 
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+	//VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
+
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(vkphysdevice, &properties);
+	dynamicAlignment = properties.limits.minUniformBufferOffsetAlignment;
 
 	uniformBuffers.resize(frameCount);
 	uniformBuffersMemory.resize(frameCount);
 	uniformBuffersMapped.resize(frameCount);
 
-	for (size_t i = 0; i < frameCount; i++)
+	if (isDynamic)
 	{
+		for (size_t i = 0; i < frameCount; i++)
+		{
+			VulkanBuffer::createBuffer(
+				device,
+				vkphysdevice,
+				totalBufferSize,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				uniformBuffers[i],
+				uniformBuffersMemory[i]
+			);
 
-		VulkanBuffer::createBuffer(
-			device,
-			vkphysdevice,
-			bufferSize,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			uniformBuffers[i],
-			uniformBuffersMemory[i]
-		);
-
-		vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+			vkMapMemory(device, uniformBuffersMemory[i], 0, totalBufferSize, 0, &uniformBuffersMapped[i]);
+		}
 	}
+	else
+	{
+		VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
+		for (size_t i = 0; i < frameCount; i++)
+		{
+
+			VulkanBuffer::createBuffer(
+				device,
+				vkphysdevice,
+				bufferSize,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				uniformBuffers[i],
+				uniformBuffersMemory[i]
+			);
+
+			vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+		}
+	}
+
+	
 }
 
 void VulkanUniformBuffers::destroy()
@@ -43,7 +75,11 @@ void VulkanUniformBuffers::destroy()
 	{
 		for (size_t i = 0; i < frameCount; i++)
 		{
-			vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+			if (uniformBuffers[i] != VK_NULL_HANDLE)
+			{
+				vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+				uniformBuffers[i] = VK_NULL_HANDLE;
+			}
 		}
 		uniformBuffers.clear();
 	}
@@ -52,15 +88,49 @@ void VulkanUniformBuffers::destroy()
 	{
 		for (size_t i = 0; i < frameCount; i++)
 		{
-			vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+			if (uniformBuffersMemory[i] != VK_NULL_HANDLE)
+			{
+				vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+				uniformBuffersMemory[i] = VK_NULL_HANDLE;
+			}
 		}
 		uniformBuffersMemory.clear();
 	}
+	uniformBuffersMapped.clear();
 }
 
-void VulkanUniformBuffers::update(uint32_t frameIndex, const UniformBufferObject ubo)
+void VulkanUniformBuffers::update(uint32_t frameIndex, const FrameUniformBufferObject ubo)
 {
-	memcpy(uniformBuffersMapped[frameIndex], &ubo, sizeof(ubo));
+	if (frameIndex >= frameCount)
+	{
+		throw std::runtime_error("Update uniform buffer: invalid frame index");
+	}
+
+	if (isDynamic)
+	{
+		throw std::runtime_error("Update function not implemented for dynamic UBOs");
+	}
+	else
+	{
+		memcpy(uniformBuffersMapped[frameIndex], &ubo, sizeof(ubo));
+	}
+	
+}
+
+void VulkanUniformBuffers::updateDynamic(uint32_t frameIndex, uint32_t objectIndex, const ObjectUniformBufferObject& ubo)
+{
+	if (!isDynamic)
+	{
+		throw std::runtime_error("updateDynamic called on non-dynamic UBO");
+	}
+	if (frameIndex >= frameCount)
+	{
+		throw std::runtime_error("Update dynamic uniform buffer: invalid frame index");
+	}
+
+	// Calculate the aligned offset for the object
+	VkDeviceSize offset = objectIndex * dynamicAlignment;
+	memcpy(static_cast<char*>(uniformBuffersMapped[frameIndex]) + offset, &ubo, sizeof(ubo));
 }
 
 VkBuffer VulkanUniformBuffers::getBuffer(uint32_t frameIndex) const
@@ -85,4 +155,17 @@ std::vector<VkBuffer> VulkanUniformBuffers::getBuffers() const
 		throw std::runtime_error("Uniform buffer get called before initalization!");
 	}
 	return uniformBuffers;
+}
+
+VkDeviceSize VulkanUniformBuffers::totalObjectDataBufferSize(VkPhysicalDevice physdevice)
+{
+	VkDeviceSize objectDataUboAlignedSize;
+	
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(physdevice, &properties);
+	VkDeviceSize minUboAlignment = properties.limits.minUniformBufferOffsetAlignment;
+
+	objectDataUboAlignedSize = (sizeof(ObjectUniformBufferObject) + minUboAlignment - 1) & ~(minUboAlignment - 1);
+
+	return objectDataUboAlignedSize * VulkanGlobals::MAX_EXPECTED_OBJECTS;
 }

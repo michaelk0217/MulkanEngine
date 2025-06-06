@@ -147,6 +147,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ModelLoader.cpp" />
+    <ClCompile Include="Renderable.cpp" />
     <ClCompile Include="VulkanBuffer.cpp" />
     <ClCompile Include="VulkanCommandBuffers.cpp" />
     <ClCompile Include="VulkanCommandPool.cpp" />
@@ -174,6 +175,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ModelLoader.h" />
+    <ClInclude Include="Renderable.h" />
     <ClInclude Include="VulkanBuffer.h" />
     <ClInclude Include="VulkanCommandBuffers.h" />
     <ClInclude Include="VulkanCommandPool.h" />
@@ -183,6 +185,7 @@
     <ClInclude Include="VulkanDescriptorSets.h" />
     <ClInclude Include="VulkanDevice.h" />
     <ClInclude Include="VulkanFramebuffers.h" />
+    <ClInclude Include="VulkanGlobals.h" />
     <ClInclude Include="VulkanGraphicsPipeline.h" />
     <ClInclude Include="VulkanImage.h" />
     <ClInclude Include="VulkanIndexBuffer.h" />

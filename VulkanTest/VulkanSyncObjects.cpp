@@ -10,7 +10,7 @@ VulkanSyncObjects::~VulkanSyncObjects()
 	destroy();
 }
 
-void VulkanSyncObjects::create(VkDevice vkdevice, uint32_t maxFramesInFlight)
+void VulkanSyncObjects::create(VkDevice vkdevice, uint32_t maxFramesInFlight, uint32_t numSwapchainImages)
 {
 	device = vkdevice;
 	maxFrames = maxFramesInFlight;
@@ -18,6 +18,8 @@ void VulkanSyncObjects::create(VkDevice vkdevice, uint32_t maxFramesInFlight)
 	imageAvailableSemaphores.resize(maxFramesInFlight);
 	renderFinishedSemaphores.resize(maxFramesInFlight);
 	inFlightFences.resize(maxFramesInFlight);
+
+	imagesInFlight.resize(numSwapchainImages, VK_NULL_HANDLE);
 
 	VkSemaphoreCreateInfo semaphoreInfo{};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -103,4 +105,10 @@ VkFence VulkanSyncObjects::getInFlightFence(uint32_t frameIndex) const
 		throw std::runtime_error("Invalid index for get inFlightFence!");
 	}
 	return inFlightFences[frameIndex];
+}
+
+VkFence& VulkanSyncObjects::getImageInFlightFence(uint32_t imageIndex)
+{
+	// Add bounds checking
+	return imagesInFlight[imageIndex];
 }

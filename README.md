@@ -18,6 +18,8 @@
 - **Interactive Camera System**: Free-look camera (first-person/fly-through) with keyboard movement and mouse look, supporting perspective projection.
 - **Basic Primitive rendering**: Rendering Mesh + Texture objects.
 - **Validation Layer Integration**: Robust error checking during development.
+- **Rendering multiple objects using dynamic uniform buffers**: enables efficient rendering of multiple objects without duplications.
+
 
 ## Showcase / Visuals
 
@@ -56,7 +58,7 @@
 1. [x] Core Vulkan SDK Integration
 2. [x] Model/Texture Loading
 3. [x] Camera Movement
-3. [ ] Scene Management
+3. [x] Basic Scene Management (Multiple Objects)
 4. [ ] Basic Lighting
 
 
