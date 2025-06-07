@@ -38,18 +38,16 @@
 
 ## 🏗️ Architecture (Early Insights)
 
-> **High-level Overview**:
->> The `VulkanEngine` class (currently in `main.cpp`) is the highest level component that wraps all the core features together.
+### VulkanEngine:
+- `VulkanEngine` serves as the central hub, owning all the core Vulkan componets via `std::unqiue_ptr`, ensuring proper and automatic resource cleanup (RAII).
 
->> Under `VulkanEngine` there is the `VulkanRenderer` class and `Camera` class, which as the name describes, the `VulkanRenderer` uses Vulkan Wrapper Classes/Helpers to build the rendering system, and the `Camera` takes in input from `GLFW` windows.
-
-> **Vulkan Wrapper Classes/Helpers**:
->> Helps manage lifetimes and simplify Vulkan API calls
-
-> **Input Handling**:
->> The user mouse and keyboard input is processed through the `GLFW` window under the `Window` class, where it takes user polls and passes it into the `Camera` object, passing the changes of the movement into the buffers.
-
-> **Planned Scene Integration**:
+### Responsibilities logically divided into discrete classes:
+- **Core Setup:** `VulkanInstance`, `VulkanSurface`, `VulkanDevice`
+- **Presentation:** `Window`, `VulkanSwapChain`
+- **Pipeline & shaders:** `VulkanRenderPass`, `VulkanDescriptorSet`, `VulkanPipelineLayout`, `VulkanGraphicsPipeline`
+- **Memory & Resources:** `VulkanVertexBuffer`, `VulkanIndexBuffer`, `VulkanUniformBuffers`, `VulaknTexture`, `VulkanDepthResources`
+- **GPU Commands:** `VulkanCommandPool`, `VulkanCommandBuffers`
+- **Synchronization:** `VulkanSyncObjects`
 
 
 ## 🛣️ Roadmap
@@ -58,8 +56,18 @@
 1. [x] Core Vulkan SDK Integration
 2. [x] Model/Texture Loading
 3. [x] Camera Movement
-3. [x] Basic Scene Management (Multiple Objects)
-4. [ ] Basic Lighting
+4. [x] Basic Scene Management (Multiple Objects)
+5. [ ] Physically Based Rendering
+    - [ ] Material System
+        - Albedo: The base color.
+        - Normals: TO give surfaces fine-grained detail.
+        - Metallic/Roughness: For the core PBR metalness workflow - to define whether a surface is metal or dielectric / how rough or smooth it is.
+        - Ambient Occulsion (AO): Pre-calculated Shadows for samll crevices to add depth
+    - [ ] Light Sources
+    - [ ] New UBOs: To store an array of lights and their properties, which will be accessible to the fragment shader.
+    - [ ] Updated Shaders
+6. [ ] Shadow Mapping
+7. [ ] Entity-Componet-System (ECS) pattern for defining game objects.
 
 
 ### Future Features:
