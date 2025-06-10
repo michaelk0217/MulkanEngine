@@ -7,6 +7,7 @@
 
 #include "VulkanGlobals.h"
 #include "VulkanBuffer.h"
+#include "Lights.h"
 
 
 struct FrameUniformBufferObject 
@@ -38,6 +39,8 @@ public:
 	void update(uint32_t frameIndex, const FrameUniformBufferObject ubo);
 
 	void updateDynamic(uint32_t frameIndex, uint32_t objectIndex, const ObjectUniformBufferObject& ubo);
+
+	void updateLights(uint32_t frameIndex, SceneLightingUBO& lightUbo);
 
 	VkBuffer getBuffer(uint32_t frameIndex) const;
 

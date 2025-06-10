@@ -12,12 +12,13 @@ VulkanDescriptorSetLayout::~VulkanDescriptorSetLayout()
 void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 {
 	device = vkdevice;
-	VkDescriptorSetLayoutBinding uboLayoutBinding{};
-	uboLayoutBinding.binding = 0; // For FrameUBO (view/proj)
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.pImmutableSamplers = nullptr;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutBinding frameUboLayoutBinding{};
+	frameUboLayoutBinding.binding = 0; // For FrameUBO (view/proj)
+	frameUboLayoutBinding.descriptorCount = 1;
+	frameUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	frameUboLayoutBinding.pImmutableSamplers = nullptr;
+	frameUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 	VkDescriptorSetLayoutBinding objectUboLayoutBinding{};
 	objectUboLayoutBinding.binding = 1;
@@ -26,14 +27,43 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	objectUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	objectUboLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 2; // For texture sampler
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkDescriptorSetLayoutBinding lightingUboLayoutBinding{};
+	lightingUboLayoutBinding.binding = 2;
+	lightingUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	lightingUboLayoutBinding.descriptorCount = 1;
+	lightingUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	lightingUboLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, objectUboLayoutBinding,samplerLayoutBinding };
+	VkDescriptorSetLayoutBinding albedoSamplerLayoutBinding{};
+	albedoSamplerLayoutBinding.binding = 3; 
+	albedoSamplerLayoutBinding.descriptorCount = 1;
+	albedoSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	albedoSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	albedoSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding normalSamplerLayoutBinding{};
+	normalSamplerLayoutBinding.binding = 4;
+	normalSamplerLayoutBinding.descriptorCount = 1;
+	normalSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	normalSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	normalSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding ormSamplerLayoutBinding{};
+	ormSamplerLayoutBinding.binding = 5;
+	ormSamplerLayoutBinding.descriptorCount = 1;
+	ormSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	ormSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	ormSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 6> bindings = { 
+		frameUboLayoutBinding, 
+		objectUboLayoutBinding,
+		lightingUboLayoutBinding,
+		albedoSamplerLayoutBinding,
+		normalSamplerLayoutBinding,
+		ormSamplerLayoutBinding
+	};
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());

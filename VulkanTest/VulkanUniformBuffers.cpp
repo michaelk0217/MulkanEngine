@@ -133,6 +133,18 @@ void VulkanUniformBuffers::updateDynamic(uint32_t frameIndex, uint32_t objectInd
 	memcpy(static_cast<char*>(uniformBuffersMapped[frameIndex]) + offset, &ubo, sizeof(ubo));
 }
 
+// ONLY CALL IF UBO IS FOR UPDATING SceneLightingUBO!!!
+void VulkanUniformBuffers::updateLights(uint32_t frameIndex, SceneLightingUBO& lightUbo)
+{
+	if (frameIndex >= frameCount)
+	{
+		throw std::runtime_error("Update lights uniform buffer: invalid frame index");
+	}
+
+	memcpy(uniformBuffersMapped[frameIndex], &lightUbo, sizeof(lightUbo));
+}
+
+
 VkBuffer VulkanUniformBuffers::getBuffer(uint32_t frameIndex) const
 {
 	if (uniformBuffers.size() == 0)

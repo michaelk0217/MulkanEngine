@@ -2,9 +2,11 @@
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 #include <vector>
+#include <map>
 
 #include "VulkanUniformBuffers.h"
 #include "Renderable.h"
+#include "Lights.h"
 
 class VulkanDescriptorSets
 {
@@ -18,25 +20,26 @@ public:
 				const std::vector<VkBuffer>& objectDUBuffers,
 				VkImageView textureImageView, VkSampler textureSampler);
 
-	void createForRenderables(
+	//void createForRenderables(
+	//	VkDevice device,
+	//	VkDescriptorPool descriptorPool,
+	//	VkDescriptorSetLayout descriptorSetLayout,
+	//	uint32_t numFrames,
+	//	const std::vector<VkBuffer> frameUboBuffers,
+	//	const std::vector<VkBuffer> objectDUBuffers,
+	//	std::vector<RenderableObject>& renderables
+	//);
+
+	void createForMaterials(
 		VkDevice device,
 		VkDescriptorPool descriptorPool,
 		VkDescriptorSetLayout descriptorSetLayout,
 		uint32_t numFrames,
 		const std::vector<VkBuffer> frameUboBuffers,
 		const std::vector<VkBuffer> objectDUBuffers,
-		std::vector<RenderableObject>& renderables
+		const std::vector<VkBuffer> lightingUboBuffers,
+		std::map<std::string, std::shared_ptr<Material>>& materials
 	);
-
-	/*void createWithTextureArray(
-		VkDevice device,
-		VkDescriptorPool descriptorPool,
-		VkDescriptorSetLayout descriptorSetLayout,
-		uint32_t numFrames,
-		const std::vector<VkBuffer>& frameUboBuffers,
-		const std::vector<VkBuffer>& objectDUBuffers,
-		const std::vector<std::unique_ptr<VulkanTexture>>& textures
-	);*/
 
 	void destroy();
 

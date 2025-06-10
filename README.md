@@ -4,6 +4,7 @@
 
 ### What is it?
 - MulkanEngine is a fundamental 3D real-time rendering engine built from scratch using the VulkanSDK. Currently it establishes a robust Vulkan rendering pipeline, manages essential resources, and provides interactive camera control to navigate a basic scene. The next major mileston einvolves implementing comprehensive scene management and loading more complex 3D models.
+- Note that the engine is using Y-Up coordinate system.
 
 ## Current Focus:
 - The immediate focus is on creating a solid foundation for real-time graphics, emphasizing correct Vulkan usage, robust resource management, and interactive camera movement.
@@ -19,6 +20,7 @@
 - **Basic Primitive rendering**: Rendering Mesh + Texture objects.
 - **Validation Layer Integration**: Robust error checking during development.
 - **Rendering multiple objects using dynamic uniform buffers**: enables efficient rendering of multiple objects without duplications.
+- **Physically Based Rendering (PBR)**: Higher visual fidelity, compatible only with ORM (ARM) maps.
 
 
 ## Showcase / Visuals
@@ -33,6 +35,9 @@
 - **Build System**:
 - **Texture Loading**: `stb_image`
 - **Model Loading**: `tinyobjloader`
+
+## Test Model Sources
+- [AmbientCG](https://ambientcg.com/)
 
 ## 📦 Getting Started
 
@@ -58,12 +63,12 @@
 3. [x] Camera Movement
 4. [x] Basic Scene Management (Multiple Objects)
 5. [ ] Physically Based Rendering
-    - [ ] Material System
+    - [x] Material System
         - Albedo: The base color.
         - Normals: TO give surfaces fine-grained detail.
         - Metallic/Roughness: For the core PBR metalness workflow - to define whether a surface is metal or dielectric / how rough or smooth it is.
         - Ambient Occulsion (AO): Pre-calculated Shadows for samll crevices to add depth
-    - [ ] Light Sources
+    - [x] Light Sources
     - [ ] New UBOs: To store an array of lights and their properties, which will be accessible to the fragment shader.
     - [ ] Updated Shaders
 6. [ ] Shadow Mapping

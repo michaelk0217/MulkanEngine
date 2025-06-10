@@ -15,16 +15,25 @@ void VulkanDescriptorPool::create(VkDevice device, uint32_t maxFramesInFlight, u
 
 	uint32_t totalSetCount = maxFramesInFlight * objectCount;
 
-	std::array<VkDescriptorPoolSize, 3> poolSizes{};
+	std::array<VkDescriptorPoolSize, 6> poolSizes{};
+	// Frame Ubo
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	//poolSizes[0].descriptorCount = static_cast<uint32_t>(maxFramesInFlight);
 	poolSizes[0].descriptorCount = totalSetCount;
+	// Object Ubo
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-	//poolSizes[1].descriptorCount = static_cast<uint32_t>(maxFramesInFlight);
 	poolSizes[1].descriptorCount = totalSetCount;
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	//poolSizes[2].descriptorCount = static_cast<uint32_t>(maxFramesInFlight);
+	// Lighting Ubo
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[2].descriptorCount = totalSetCount;
+	// albedo Sampler Ubo
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[3].descriptorCount = totalSetCount;
+	// normal Sampler Ubo
+	poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[4].descriptorCount = totalSetCount;
+	// orm Sampler Ubo
+	poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[5].descriptorCount = totalSetCount;
 
 
 	VkDescriptorPoolCreateInfo poolInfo{};

@@ -46,6 +46,8 @@
 
 #include "Camera.h"
 #include "Renderable.h"
+#include "Material.h"
+#include "Lights.h"
 
 
 const uint32_t WIDTH = 800;
@@ -136,7 +138,6 @@ private:
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
-
 	std::unique_ptr<Camera> camera;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
@@ -151,12 +152,17 @@ private:
 	std::map<std::string, std::uint32_t> meshIndexCounts;
 
 	// mapped with texture path string
-	std::map<std::string, std::unique_ptr<VulkanTexture>> loadedTextures;
+	//std::map<std::string, std::unique_ptr<VulkanTexture>> loadedTextures;
+
+	std::map<std::string, std::shared_ptr<Material>> loadedMaterials;
 
 	std::vector<RenderableObject> renderableObjects;
 
+	// UniformBuffers
 	std::unique_ptr<VulkanUniformBuffers> frameUboManager;
 	std::unique_ptr<VulkanUniformBuffers> objectDataDUBManager;
+	std::unique_ptr<VulkanUniformBuffers> lightingUboManager;
+	SceneLightingUBO sceneLights; // CPU SIDE DATA
 	// -------------------------------------
 
 	void initWindow()
@@ -240,12 +246,18 @@ private:
 			VulkanUniformBuffers::totalObjectDataBufferSize(devices->getPhysicalDevice()),
 			true);
 
+		lightingUboManager = std::make_unique<VulkanUniformBuffers>();
+		lightingUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(SceneLightingUBO));
+
+		sceneLights.dirLight.direction = glm::normalize(glm::vec4(-0.5, -1.0f, -0.5f, 0.0f));
+		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 5.0f);
+
 
 		descriptorPool = std::make_unique<VulkanDescriptorPool>();
 		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, renderableObjects.size());
 
 		descriptorSets = std::make_unique<VulkanDescriptorSets>();
-		descriptorSets->createForRenderables(
+		/*descriptorSets->createForRenderables(
 			devices->getLogicalDevice(),
 			descriptorPool->getVkDescriptorPool(),
 			descriptorSetLayout->getVkDescriptorSetLayout(),
@@ -253,6 +265,16 @@ private:
 			frameUboManager->getBuffers(),
 			objectDataDUBManager->getBuffers(),
 			renderableObjects
+		);*/
+		descriptorSets->createForMaterials(
+			devices->getLogicalDevice(),
+			descriptorPool->getVkDescriptorPool(),
+			descriptorSetLayout->getVkDescriptorSetLayout(),
+			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
+			frameUboManager->getBuffers(),
+			objectDataDUBManager->getBuffers(),
+			lightingUboManager->getBuffers(),
+			loadedMaterials
 		);
 
 		commandBuffers = std::make_unique<VulkanCommandBuffers>();
@@ -306,6 +328,10 @@ private:
 			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
 
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
+
+			sceneLights.viewPosition = glm::vec4(camera->getCameraPosition(), 1.0f);
+			lightingUboManager->updateLights(uboFrameIndex, sceneLights);
+
 			updateObjectUniforms(uboFrameIndex);
 
 			renderer->drawFrame(
@@ -341,9 +367,6 @@ private:
 
 		if (renderer) renderer.reset();
 
-	/*	if (textureObj) textureObj->destroy();
-		textureObj.reset();*/
-
 		for (auto& pair : loadedVertexBuffers)
 		{
 			if (pair.second) pair.second->destroy();
@@ -355,11 +378,26 @@ private:
 			if (pair.second) pair.second->destroy();
 		}
 		loadedIndexBuffers.clear();
-		for (auto& pair : loadedTextures)
+
+		/*for (auto& pair : loadedTextures)
 		{
 			if (pair.second) pair.second->destroy();
 		}
-		loadedTextures.clear();
+		loadedTextures.clear();*/
+
+		for (auto& pair : loadedMaterials)
+		{
+			if (pair.second)
+			{
+				pair.second->albedoMap->destroy();
+				pair.second->albedoMap.reset();
+				pair.second->normalMap->destroy();
+				pair.second->normalMap.reset();
+				pair.second->ormMap->destroy();
+				pair.second->ormMap.reset();
+			}
+		}
+		loadedMaterials.clear();
 
 		if (frameUboManager) frameUboManager->destroy();
 		frameUboManager.reset();
@@ -367,12 +405,8 @@ private:
 		if (objectDataDUBManager) objectDataDUBManager->destroy();
 		objectDataDUBManager.reset();
 
-		/*if (indexBufferObj) indexBufferObj->destroy();
-		indexBufferObj.reset();
-
-		if (vertexBufferObj) vertexBufferObj->destroy();
-		vertexBufferObj.reset();*/
-
+		if (lightingUboManager) lightingUboManager->destroy();
+		lightingUboManager.reset();
 
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
@@ -454,8 +488,9 @@ private:
 	{
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			{"viking_room_1", MODEL_PATH, TEXTURE_PATH, glm::vec3(0.0f, 0.0f, 0.0f)},
-			{"viking_room_2", MODEL_PATH, TEXTURE_PATH, glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 45.0f)}
+			/*{"viking_room_1", MODEL_PATH, TEXTURE_PATH, glm::vec3(0.0f, 0.0f, 0.0f)},
+			{"viking_room_2", MODEL_PATH, TEXTURE_PATH, glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 45.0f)}*/
+			{"Metal_PBR_Preview", "", "Metal055A_4K", "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png", "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png", "textures/Metal055A_4K/Metal055A_4K-MRA.png", glm::vec3(0.0, 0.0, 0.0)}
 		};
 
 		for (const auto& def : sceneDefinitions)
@@ -465,7 +500,16 @@ private:
 				// --- Load/Get Mesh ---
 				std::vector<Vertex> vertices;
 				std::vector<uint32_t> indices;
-				ModelLoader::loadModel(def.meshPath, vertices, indices);
+
+				if (def.meshPath.size() == 0)
+				{
+					ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
+				}
+				else
+				{
+					ModelLoader::loadModel(def.meshPath, vertices, indices);
+				}
+				
 
 				auto vb = std::make_unique<VulkanVertexBuffer>();
 				vb->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), vertices);
@@ -477,12 +521,40 @@ private:
 				meshIndexCounts[def.meshPath] = static_cast<uint32_t>(indices.size());
 			}
 
-			if (loadedTextures.find(def.texturePath) == loadedTextures.end()) // If texture is not loaded
+			if (loadedMaterials.find(def.materalName) == loadedMaterials.end())
 			{
-				// --- Load/Get Texture ---
-				auto tex = std::make_unique<VulkanTexture>();
-				tex->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.texturePath);
-				loadedTextures[def.texturePath] = std::move(tex);
+				// --- Load/Get Material ---
+				auto material = std::make_shared<Material>();
+				auto albedo = std::make_shared<VulkanTexture>();
+				albedo->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.albedoPath);
+				
+				auto normal = std::make_shared<VulkanTexture>();
+				if (def.normalPath.size() == 0)
+				{
+					normal->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_normal.png");
+				}
+				else
+				{
+					normal->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.normalPath);
+				}
+				
+				auto orm = std::make_shared<VulkanTexture>();
+				if (def.ormPath.size() == 0)
+				{
+					orm->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_orm.png");
+				}
+				else
+				{
+					orm->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.ormPath);
+				}
+				
+
+				material->name = def.materalName;
+				material->albedoMap = albedo;
+				material->normalMap = normal;
+				material->ormMap = orm;
+
+				loadedMaterials[def.materalName] = material;
 			}
 
 			// --- Create RenderableObject ---
@@ -490,7 +562,7 @@ private:
 			renderable.vertexBuffer = loadedVertexBuffers[def.meshPath].get();
 			renderable.indexBuffer = loadedIndexBuffers[def.meshPath].get();
 			renderable.indexCount = meshIndexCounts[def.meshPath];
-			renderable.texture = loadedTextures[def.texturePath].get();
+			renderable.material = loadedMaterials[def.materalName];
 
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, def.position);
@@ -535,7 +607,6 @@ private:
 			//objectUbo.model = renderable.modelMatrix;
 
 			// If coordinateSystemCorrection is needed and not already baked into renderabel.modelMatrix:
-
 			objectUbo.model = coordinateSystemCorrection * renderable.modelMatrix;
 
 			objectDataDUBManager->updateDynamic(currentFrameIndex, i, objectUbo);

@@ -11,13 +11,18 @@
 #include "VulkanIndexBuffer.h"
 #include "VulkanTexture.h"
 #include "VulkanUniformBuffers.h"
+#include "Material.h"
 
 // Defines objects in the scene
 struct SceneObjectDefinition
 {
     std::string name;
     std::string meshPath;
-    std::string texturePath;
+    std::string materalName;
+    //std::string texturePath;
+    std::string albedoPath;
+    std::string normalPath;
+    std::string ormPath;
 
     glm::vec3 position = glm::vec3(0.0f);
     glm::vec3 rotationAngles = glm::vec3(0.0f); // in degrees
@@ -34,13 +39,17 @@ struct RenderableObject
     VulkanVertexBuffer* vertexBuffer = nullptr;
     VulkanIndexBuffer* indexBuffer = nullptr;
     uint32_t indexCount = 0;
-    VulkanTexture* texture = nullptr;
+    //VulkanTexture* texture = nullptr;
+
+    // Pointer to a shared material
+    std::shared_ptr<Material> material = nullptr;
 
     // Object's transformation  
     glm::mat4 modelMatrix = glm::mat4(1.0f);
 
-    // Each object has its own descriptor sets
-    std::vector<VkDescriptorSet> frameSpecificDescriptorSets;
+    // Each object has its own descriptor sets --- Removed: the descriptor sets are now in the Material struct
+    //std::vector<VkDescriptorSet> frameSpecificDescriptorSets;
 
-    RenderableObject() : frameSpecificDescriptorSets(VulkanGlobals::MAX_FRAMES_IN_FLIGHT) {}
+    //RenderableObject() : frameSpecificDescriptorSets(VulkanGlobals::MAX_FRAMES_IN_FLIGHT) {}
+    RenderableObject() = default;
 };

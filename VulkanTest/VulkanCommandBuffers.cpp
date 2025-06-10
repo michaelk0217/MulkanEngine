@@ -98,10 +98,10 @@ void VulkanCommandBuffers::recordCommandBuffer(
 
 		uint32_t dynamicOffset = i * static_cast<uint32_t>(dynamicUboAlignment);
 
-		VkDescriptorSet objectDescriptorSet = renderable.frameSpecificDescriptorSets[currentFrameIndex];
+		VkDescriptorSet materialDescriptorSet = renderable.material->frameSpecificDescriptorSets[currentFrameIndex];
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-			0, 1, /*&currentDescriptorSet*/ &objectDescriptorSet,
+			0, 1, &materialDescriptorSet,
 			1, &dynamicOffset);
 		
 		vkCmdDrawIndexed(commandBuffer, renderable.indexCount, 1, 0, 0, 0);
