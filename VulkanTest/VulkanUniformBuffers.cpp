@@ -1,8 +1,8 @@
 #include "VulkanUniformBuffers.h"
 
-VulkanUniformBuffers::VulkanUniformBuffers() 
-	: uniformBuffers({}), uniformBuffersMemory({}), uniformBuffersMapped({}), 
-	device(VK_NULL_HANDLE), frameCount(0), isDynamic(false), dynamicAlignment(0)
+VulkanUniformBuffers::VulkanUniformBuffers()
+	: uniformBuffers({}), uniformBuffersMemory({}), uniformBuffersMapped({}),
+	device(VK_NULL_HANDLE), frameCount(0), isDynamic(false), dynamicAlignment(0), bufferSize(0)
 {
 }
 
@@ -18,6 +18,7 @@ void VulkanUniformBuffers::create(VkDevice vkdevice, VkPhysicalDevice vkphysdevi
 	device = vkdevice;
 	frameCount = numFrames;
 	this->isDynamic = isDynamic;
+	this->bufferSize = totalBufferSize;
 
 	//VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
 
@@ -98,8 +99,8 @@ void VulkanUniformBuffers::destroy()
 	}
 	uniformBuffersMapped.clear();
 }
-
-void VulkanUniformBuffers::update(uint32_t frameIndex, const FrameUniformBufferObject ubo)
+template<typename T>
+void VulkanUniformBuffers::update(uint32_t frameIndex, const T& ubo)
 {
 	if (frameIndex >= frameCount)
 	{
@@ -110,11 +111,13 @@ void VulkanUniformBuffers::update(uint32_t frameIndex, const FrameUniformBufferO
 	{
 		throw std::runtime_error("Update function not implemented for dynamic UBOs");
 	}
-	else
-	{
-		memcpy(uniformBuffersMapped[frameIndex], &ubo, sizeof(ubo));
-	}
 	
+	if (sizeof(T) != bufferSize)
+	{
+		throw std:: runtime_error("UBO size mismatch: provided UBO size does not match buffer size.");
+	}
+
+	memcpy(uniformBuffersMapped[frameIndex], &ubo, sizeof(T));
 }
 
 void VulkanUniformBuffers::updateDynamic(uint32_t frameIndex, uint32_t objectIndex, const ObjectUniformBufferObject& ubo)
@@ -181,3 +184,8 @@ VkDeviceSize VulkanUniformBuffers::totalObjectDataBufferSize(VkPhysicalDevice ph
 
 	return objectDataUboAlignedSize * VulkanGlobals::MAX_EXPECTED_OBJECTS;
 }
+
+// Explicit template instantiations
+template void VulkanUniformBuffers::update<FrameUniformBufferObject>(uint32_t frameIndex, const FrameUniformBufferObject& ubo);
+template void VulkanUniformBuffers::update<TessellationUBO>(uint32_t frameIndex, const TessellationUBO& ubo);
+template void VulkanUniformBuffers::update<SceneLightingUBO>(uint32_t frameIndex, const SceneLightingUBO& ubo);

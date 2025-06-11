@@ -10,15 +10,28 @@ VulkanGraphicsPipeline::~VulkanGraphicsPipeline()
 	destroy();
 }
 
-void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& vertShaderPath, const std::string& fragShaderPath)
+void VulkanGraphicsPipeline::create(
+	VkDevice vkDevice, 
+	VkPipelineLayout pipelineLayout, 
+	VkRenderPass renderPass, 
+	const std::string& vertShaderPath, 
+	const std::string& fragShaderPath, 
+	const std::string& tescShaderPath, 
+	const std::string& teseShaderPath,
+	VkPolygonMode polygonMode
+)
 {
 	device = vkDevice;
 
 	auto vertShaderCode = readFile(vertShaderPath);
 	auto fragShaderCode = readFile(fragShaderPath);
+	auto tescShaderCode = readFile(tescShaderPath);
+	auto teseShaderCode = readFile(teseShaderPath);
 
 	VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
 	VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
+	VkShaderModule tescShaderModule = createShaderModule(device, tescShaderCode);
+	VkShaderModule teseShaderModule = createShaderModule(device, teseShaderCode);
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -32,7 +45,25 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+	VkPipelineShaderStageCreateInfo tescShaderStageInfo{};
+	tescShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	tescShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+	tescShaderStageInfo.module = tescShaderModule;
+	tescShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo teseShaderStageInfo{};
+	teseShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	teseShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+	teseShaderStageInfo.module = teseShaderModule;
+	teseShaderStageInfo.pName = "main";
+
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { 
+		vertShaderStageInfo,
+		tescShaderStageInfo,
+		teseShaderStageInfo,
+		fragShaderStageInfo 
+	};
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 
@@ -47,7 +78,8 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	//inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; // feeding the GPU patches
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkPipelineViewportStateCreateInfo viewportState{};
@@ -58,7 +90,7 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 	VkPipelineRasterizationStateCreateInfo rasterizer{};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
-	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.polygonMode = polygonMode;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -111,6 +143,10 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 	depthStencil.front = {}; // Optional
 	depthStencil.back = {}; // Optional
 
+	VkPipelineTessellationStateCreateInfo tessellationState{};
+	tessellationState.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+	tessellationState.patchControlPoints = 3;
+
 	std::vector<VkDynamicState> dynamicStates = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR
@@ -122,7 +158,7 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = 2;
+	pipelineInfo.stageCount = 4;
 	pipelineInfo.pStages = shaderStages;
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -131,6 +167,7 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 	pipelineInfo.pMultisampleState = &multisampling;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pTessellationState = &tessellationState;
 	pipelineInfo.pDynamicState = &dynamicState;
 	pipelineInfo.layout = pipelineLayout;
 	pipelineInfo.renderPass = renderPass;
@@ -145,6 +182,8 @@ void VulkanGraphicsPipeline::create(VkDevice vkDevice, VkPipelineLayout pipeline
 
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(device, tescShaderModule, nullptr);
+	vkDestroyShaderModule(device, teseShaderModule, nullptr);
 }
 
 void VulkanGraphicsPipeline::destroy()

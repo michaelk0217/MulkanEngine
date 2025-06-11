@@ -18,13 +18,13 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	frameUboLayoutBinding.descriptorCount = 1;
 	frameUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	frameUboLayoutBinding.pImmutableSamplers = nullptr;
-	frameUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	frameUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 
 	VkDescriptorSetLayoutBinding objectUboLayoutBinding{};
 	objectUboLayoutBinding.binding = 1;
 	objectUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	objectUboLayoutBinding.descriptorCount = 1;
-	objectUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	objectUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 	objectUboLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding lightingUboLayoutBinding{};
@@ -55,13 +55,29 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	ormSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	ormSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 6> bindings = { 
+	VkDescriptorSetLayoutBinding displacementSamplerLayoutBinding{};
+	displacementSamplerLayoutBinding.binding = 6;
+	displacementSamplerLayoutBinding.descriptorCount = 1;
+	displacementSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	displacementSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	displacementSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+
+	VkDescriptorSetLayoutBinding tessUboLayoutBinding{};
+	tessUboLayoutBinding.binding = 7;
+	tessUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	tessUboLayoutBinding.descriptorCount = 1;
+	tessUboLayoutBinding.pImmutableSamplers = nullptr;
+	tessUboLayoutBinding.stageFlags = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 8> bindings = { 
 		frameUboLayoutBinding, 
 		objectUboLayoutBinding,
 		lightingUboLayoutBinding,
 		albedoSamplerLayoutBinding,
 		normalSamplerLayoutBinding,
-		ormSamplerLayoutBinding
+		ormSamplerLayoutBinding,
+		displacementSamplerLayoutBinding,
+		tessUboLayoutBinding
 	};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};

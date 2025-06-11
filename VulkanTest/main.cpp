@@ -12,6 +12,8 @@
 #include <chrono>
 #include <memory>
 #include <map>
+#include <algorithm>
+
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -120,7 +122,10 @@ private:
 	std::unique_ptr<VulkanDescriptorPool> descriptorPool;
 	std::unique_ptr<VulkanDescriptorSets> descriptorSets;
 	std::unique_ptr<VulkanPipelineLayout> pipelineLayout;
-	std::unique_ptr<VulkanGraphicsPipeline> graphicsPipeline;
+
+	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
+	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineWireframe;
+	bool m_WireframeMode = false;
 
 	std::unique_ptr<VulkanFramebuffers> swapChainFramebuffers;
 
@@ -144,6 +149,7 @@ private:
 	float deltaTime = 0.0f;
 	float accumulatedTime = 0.0f;
 
+
 	// --- Collection of Model resources --- 
 
 	// mapped with mesh path string
@@ -163,6 +169,8 @@ private:
 	std::unique_ptr<VulkanUniformBuffers> objectDataDUBManager;
 	std::unique_ptr<VulkanUniformBuffers> lightingUboManager;
 	SceneLightingUBO sceneLights; // CPU SIDE DATA
+	std::unique_ptr<VulkanUniformBuffers> tessellationUboManager;
+	TessellationUBO tessUboData; // CPU SIDE DATA
 	// -------------------------------------
 
 	void initWindow()
@@ -223,9 +231,39 @@ private:
 		pipelineLayout = std::make_unique<VulkanPipelineLayout>();
 		pipelineLayout->create(devices->getLogicalDevice(), descriptorSetLayout->getVkDescriptorSetLayout());
 
-		graphicsPipeline = std::make_unique<VulkanGraphicsPipeline>();
-		graphicsPipeline->create(devices->getLogicalDevice(), pipelineLayout->getVkPipelineLayout(),
-			renderPass->getVkRenderPass(), "shaders/vert.spv", "shaders/frag.spv");
+		// --- Graphics Pipieline ---
+		m_GraphicsPipelineFill = std::make_unique<VulkanGraphicsPipeline>();
+		m_GraphicsPipelineFill->create(
+			devices->getLogicalDevice(), 
+			pipelineLayout->getVkPipelineLayout(),
+			renderPass->getVkRenderPass(), 
+			"shaders/tess.vert.spv", 
+			"shaders/frag.spv",
+			"shaders/tess.tesc.spv",
+			"shaders/tess.tese.spv",
+			VK_POLYGON_MODE_FILL
+		);
+
+
+
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(devices->getPhysicalDevice(), &deviceFeatures);
+		
+		if (deviceFeatures.fillModeNonSolid)
+		{
+			m_GraphicsPipelineWireframe = std::make_unique<VulkanGraphicsPipeline>();
+			m_GraphicsPipelineWireframe->create(
+				devices->getLogicalDevice(),
+				pipelineLayout->getVkPipelineLayout(),
+				renderPass->getVkRenderPass(),
+				"shaders/tess.vert.spv",
+				"shaders/wireframe.frag.spv",
+				"shaders/tess.tesc.spv",
+				"shaders/tess.tese.spv",
+				VK_POLYGON_MODE_LINE // Specify line mode
+			);
+		}
+		// ---------------------------
 
 		commandPool = std::make_unique<VulkanCommandPool>();
 		commandPool->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), surface->getVkSurface());
@@ -238,8 +276,9 @@ private:
 
 		loadAssetsAndCreateRenderables();
 
+		// --- uniform buffers ---
 		frameUboManager = std::make_unique<VulkanUniformBuffers>();
-		frameUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT);
+		frameUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(FrameUniformBufferObject));
 
 		objectDataDUBManager = std::make_unique<VulkanUniformBuffers>();
 		objectDataDUBManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
@@ -250,22 +289,17 @@ private:
 		lightingUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(SceneLightingUBO));
 
 		sceneLights.dirLight.direction = glm::normalize(glm::vec4(-0.5, -1.0f, -0.5f, 0.0f));
-		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 5.0f);
+		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 5.0f); //w intensity
 
+		tessellationUboManager = std::make_unique<VulkanUniformBuffers>();
+		tessellationUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(TessellationUBO));
+
+		// ------------------------
 
 		descriptorPool = std::make_unique<VulkanDescriptorPool>();
-		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, renderableObjects.size());
+		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(renderableObjects.size()));
 
 		descriptorSets = std::make_unique<VulkanDescriptorSets>();
-		/*descriptorSets->createForRenderables(
-			devices->getLogicalDevice(),
-			descriptorPool->getVkDescriptorPool(),
-			descriptorSetLayout->getVkDescriptorSetLayout(),
-			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
-			frameUboManager->getBuffers(),
-			objectDataDUBManager->getBuffers(),
-			renderableObjects
-		);*/
 		descriptorSets->createForMaterials(
 			devices->getLogicalDevice(),
 			descriptorPool->getVkDescriptorPool(),
@@ -274,6 +308,7 @@ private:
 			frameUboManager->getBuffers(),
 			objectDataDUBManager->getBuffers(),
 			lightingUboManager->getBuffers(),
+			tessellationUboManager->getBuffers(),
 			loadedMaterials
 		);
 
@@ -281,14 +316,14 @@ private:
 		commandBuffers->create(devices->getLogicalDevice(), commandPool->getVkCommandPool(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT);
 
 		syncObjects = std::make_unique<VulkanSyncObjects>();
-		syncObjects->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, swapChainObj->getImageViews().size());
+		syncObjects->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swapChainObj->getImageViews().size()));
 
 		renderer = std::make_unique<VulkanRenderer>(
 			*devices,            // Pass by reference
 			*swapChainObj,
 			*renderPass,
 			*pipelineLayout,
-			*graphicsPipeline,
+			*m_GraphicsPipelineFill,
 			*swapChainFramebuffers,
 			*commandBuffers,
 			*frameUboManager,
@@ -315,6 +350,13 @@ private:
 	{
 		startTime = std::chrono::high_resolution_clock::now();
 		accumulatedTime = 0.0f;
+
+		bool m_M_KeyPressed = false;
+		bool up_KeyPressed = false;
+		bool down_KeyPressed = false;
+		size_t tessLevelIndex = 0;
+		std::array<float, 4> tessLevelValue{4.0f, 8.0f, 16.0f, 64.0f};
+
 		while (window && !window->shouldClose())
 		{
 			auto currentTime = std::chrono::high_resolution_clock::now();
@@ -327,14 +369,113 @@ private:
 			camera->processKeyboard(window->getKeys(), deltaTime);
 			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
 
+			 /*if (window->getKeys()[GLFW_KEY_UP] && !up_KeyPressed)
+			 { 
+				 tessLevelIndex = std::min(tessLevelIndex + 1, tessLevelValue.size() - 1);
+				 tessUboData.tessellationLevel = tessLevelValue[tessLevelIndex];
+				 up_KeyPressed = true;
+			 }
+			 if (!window->getKeys()[GLFW_KEY_UP])
+			 {
+				 up_KeyPressed = false;
+			 }
+			 if (window->getKeys()[GLFW_KEY_DOWN] && !down_KeyPressed)
+			 { 
+				 tessLevelIndex = std::max(static_cast<size_t>(0), tessLevelIndex - 1);
+				 tessUboData.tessellationLevel = tessLevelValue[tessLevelIndex];
+				 down_KeyPressed = true;
+			 }
+			 if (!window->getKeys()[GLFW_KEY_DOWN])
+			 {
+				 down_KeyPressed = false;
+			 }*/
+
+			 // Safely check key states with bounds validation
+			const auto& keys = window->getKeys();
+
+			if (keys[GLFW_KEY_UP] && !up_KeyPressed)
+			{
+				if (tessLevelIndex + 1 < tessLevelValue.size())
+				{
+					++tessLevelIndex;
+					try
+					{
+						tessUboData.tessellationLevel = tessLevelValue.at(tessLevelIndex);
+						// Optional: Log for debugging
+						// std::cout << "Tessellation Level: " << tessUboData.tessellationLevel << std::endl;
+					}
+					catch (const std::out_of_range& e)
+					{
+						std::cerr << "Tessellation array access error: " << e.what() << std::endl;
+						tessLevelIndex = 0; // Reset to safe index
+						tessUboData.tessellationLevel = tessLevelValue.at(0);
+					}
+					up_KeyPressed = true;
+				}
+			}
+			if (!keys[GLFW_KEY_UP])
+			{
+				up_KeyPressed = false;
+			}
+
+			if (keys[GLFW_KEY_DOWN] && !down_KeyPressed)
+			{
+				if (tessLevelIndex > 0)
+				{
+					--tessLevelIndex;
+					try
+					{
+						tessUboData.tessellationLevel = tessLevelValue.at(tessLevelIndex);
+						// Optional: Log for debugging
+						// std::cout << "Tessellation Level: " << tessUboData.tessellationLevel << std::endl;
+					}
+					catch (const std::out_of_range& e)
+					{
+						std::cerr << "Tessellation array access error: " << e.what() << std::endl;
+						tessLevelIndex = 0; // Reset to safe index
+						tessUboData.tessellationLevel = tessLevelValue.at(0);
+					}
+					down_KeyPressed = true;
+				}
+			}
+			if (!keys[GLFW_KEY_DOWN])
+			{
+				down_KeyPressed = false;
+			}
+
+			 if (window->getKeys()[GLFW_KEY_M] && !m_M_KeyPressed)
+			 {
+				 if (m_GraphicsPipelineWireframe)
+				 {
+
+					 m_WireframeMode = !m_WireframeMode;
+					 //printf("Wireframe mode toggled: %b\n", m_WireframeMode);
+
+				 }
+				 m_M_KeyPressed = true;
+			 }
+			 if (!window->getKeys()[GLFW_KEY_M]) 
+			 {
+				 m_M_KeyPressed = false;
+			 }
+
+
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
+			tessellationUboManager->update(uboFrameIndex, tessUboData);
+
 			sceneLights.viewPosition = glm::vec4(camera->getCameraPosition(), 1.0f);
-			lightingUboManager->updateLights(uboFrameIndex, sceneLights);
+			//lightingUboManager->updateLights(uboFrameIndex, sceneLights);
+			lightingUboManager->update(uboFrameIndex, sceneLights);
 
 			updateObjectUniforms(uboFrameIndex);
 
+			VkPipeline pipelineToUse = m_WireframeMode
+				? m_GraphicsPipelineWireframe->getVkPipeline()
+				: m_GraphicsPipelineFill->getVkPipeline();
+
 			renderer->drawFrame(
+				pipelineToUse,
 				[this]() { return this->frameUboUpdate(); },
 				framebufferResized,
 				[this]() { return this->recreateSwapChain(); },
@@ -395,6 +536,8 @@ private:
 				pair.second->normalMap.reset();
 				pair.second->ormMap->destroy();
 				pair.second->ormMap.reset();
+				pair.second->displacementMap->destroy();
+				pair.second->displacementMap.reset();
 			}
 		}
 		loadedMaterials.clear();
@@ -408,6 +551,9 @@ private:
 		if (lightingUboManager) lightingUboManager->destroy();
 		lightingUboManager.reset();
 
+		if (tessellationUboManager) tessellationUboManager->destroy();
+		tessellationUboManager.reset();
+
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
 
@@ -417,8 +563,11 @@ private:
 		if (descriptorPool) descriptorPool->destroy();
 		descriptorPool.reset();
 
-		if (graphicsPipeline) graphicsPipeline->destroy();
-		graphicsPipeline.reset();
+		if (m_GraphicsPipelineFill) m_GraphicsPipelineFill->destroy();
+		m_GraphicsPipelineFill.reset();
+
+		if (m_GraphicsPipelineWireframe) m_GraphicsPipelineWireframe->destroy();
+		m_GraphicsPipelineWireframe.reset();
 
 		if (pipelineLayout) pipelineLayout->destroy();
 		pipelineLayout.reset();
@@ -490,7 +639,26 @@ private:
 		{
 			/*{"viking_room_1", MODEL_PATH, TEXTURE_PATH, glm::vec3(0.0f, 0.0f, 0.0f)},
 			{"viking_room_2", MODEL_PATH, TEXTURE_PATH, glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 45.0f)}*/
-			{"Metal_PBR_Preview", "", "Metal055A_4K", "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png", "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png", "textures/Metal055A_4K/Metal055A_4K-MRA.png", glm::vec3(0.0, 0.0, 0.0)}
+			{
+				"Metal_PBR_Preview", 
+				"", 
+				"Metal055A_4K", 
+				"textures/Metal055A_4K/Metal055A_4K-PNG_Color.png", // Albedo
+				"textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png", //Normal
+				"textures/Metal055A_4K/Metal055A_4K-MRA.png", // ORM
+				"textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png", //Displacement
+				glm::vec3(0.0, 0.0, 0.0)
+			},
+			{
+				"Rock_PBR_Preview",
+				"",
+				"Rock061_4K",
+				"textures/Rock061_4K/Rock061_4K-PNG_Color.png",
+				"textures/Rock061_4K/Rock061_4K-PNG_NormalDX.png",
+				"textures/Rock061_4K/Rock061_4K-PNG_ORM.png",
+				"textures/Rock061_4K/Rock061_4K-PNG_Displacement.png",
+				glm::vec3(10.0, 0.0, 0.0)
+			}
 		};
 
 		for (const auto& def : sceneDefinitions)
@@ -503,7 +671,7 @@ private:
 
 				if (def.meshPath.size() == 0)
 				{
-					ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
+					ModelLoader::createSphere(2.5, 16, 16, vertices, indices);
 				}
 				else
 				{
@@ -547,12 +715,23 @@ private:
 				{
 					orm->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.ormPath);
 				}
+
+				auto displacement = std::make_shared<VulkanTexture>();
+				if (def.displacementPath.size() == 0)
+				{
+					displacement->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_orm.png");
+				}
+				else
+				{
+					displacement->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.displacementPath);
+				}
 				
 
 				material->name = def.materalName;
 				material->albedoMap = albedo;
 				material->normalMap = normal;
 				material->ormMap = orm;
+				material->displacementMap = displacement;
 
 				loadedMaterials[def.materalName] = material;
 			}

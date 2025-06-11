@@ -17,9 +17,8 @@ struct Material
 	// We use shared_ptr because multiple objects might share the same material.
 	std::shared_ptr<VulkanTexture> albedoMap; // Base color
 	std::shared_ptr<VulkanTexture> normalMap; // Surface detail
-	//std::shared_ptr<VulkanTexture> metallicRoughnessMap; // Metalness (R channel)
-	//std::shared_ptr<VulkanTexture> aoMap; // Ambient Occlusion
 	std::shared_ptr<VulkanTexture> ormMap; // R: Occlusion, G: Roughness, B: Metallic
+	std::shared_ptr<VulkanTexture> displacementMap;
 
 	std::vector<VkDescriptorSet> frameSpecificDescriptorSets;
 

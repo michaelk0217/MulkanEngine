@@ -15,7 +15,7 @@ void VulkanDescriptorPool::create(VkDevice device, uint32_t maxFramesInFlight, u
 
 	uint32_t totalSetCount = maxFramesInFlight * objectCount;
 
-	std::array<VkDescriptorPoolSize, 6> poolSizes{};
+	std::array<VkDescriptorPoolSize, 8> poolSizes{};
 	// Frame Ubo
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = totalSetCount;
@@ -34,6 +34,12 @@ void VulkanDescriptorPool::create(VkDevice device, uint32_t maxFramesInFlight, u
 	// orm Sampler Ubo
 	poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[5].descriptorCount = totalSetCount;
+	// displacement sampler Ubo
+	poolSizes[6].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[6].descriptorCount = totalSetCount;
+	// tessellation Ubo
+	poolSizes[7].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[7].descriptorCount = totalSetCount;
 
 
 	VkDescriptorPoolCreateInfo poolInfo{};

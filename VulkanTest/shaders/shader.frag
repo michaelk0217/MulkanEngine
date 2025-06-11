@@ -65,9 +65,15 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 }
 
 void main() {
-    // outColor = texture(texSampler, fragTexCoord);
+
+// TEMPORARY TEST: Hardcode albedo and roughness to safe, neutral values.
+    // vec3 albedo = vec3(0.5, 0.5, 0.5); // A mid-grey non-metal
+    // float roughness = 0.5;
+    // float metallic = 0.0;
+    // float ao = 1.0; // No ambient occlusion
 
     vec3 albedo = texture(albedoMap, inTexCoord).rgb;
+    // vec3 albedo = pow(texture(albedoMap, inTexCoord).rgb, vec3(2.2));
 
     vec3 ormData = texture(ormMap, inTexCoord).rgb;
     float ao = ormData.r;
@@ -131,7 +137,7 @@ void main() {
 
     // Tone Mapping & Gamma Correction
     color = color / (color + vec3(1.0)); // Basic Reinhard tone mapping
-    color = pow(color, vec3(1.0/2.2)); // Apply gamma correction
+    // color = pow(color, vec3(1.0/2.2)); // Apply gamma correction
 
     outColor = vec4(color, 1.0);
 }

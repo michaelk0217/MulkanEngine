@@ -20,16 +20,6 @@ public:
 				const std::vector<VkBuffer>& objectDUBuffers,
 				VkImageView textureImageView, VkSampler textureSampler);
 
-	//void createForRenderables(
-	//	VkDevice device,
-	//	VkDescriptorPool descriptorPool,
-	//	VkDescriptorSetLayout descriptorSetLayout,
-	//	uint32_t numFrames,
-	//	const std::vector<VkBuffer> frameUboBuffers,
-	//	const std::vector<VkBuffer> objectDUBuffers,
-	//	std::vector<RenderableObject>& renderables
-	//);
-
 	void createForMaterials(
 		VkDevice device,
 		VkDescriptorPool descriptorPool,
@@ -38,6 +28,7 @@ public:
 		const std::vector<VkBuffer> frameUboBuffers,
 		const std::vector<VkBuffer> objectDUBuffers,
 		const std::vector<VkBuffer> lightingUboBuffers,
+		const std::vector<VkBuffer> tessUboBuffers,
 		std::map<std::string, std::shared_ptr<Material>>& materials
 	);
 

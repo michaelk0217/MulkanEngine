@@ -116,15 +116,14 @@ void VulkanDevice::createLogicalDevice()
 
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.tessellationShader = VK_TRUE;
+	deviceFeatures.fillModeNonSolid = VK_TRUE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
 	createInfo.pEnabledFeatures = &deviceFeatures;
-
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensionsTmp.size());
 	createInfo.ppEnabledExtensionNames = deviceExtensionsTmp.data();
 
@@ -160,7 +159,7 @@ bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice physdevice)
 	VkPhysicalDeviceFeatures supportedFeatures;
 	vkGetPhysicalDeviceFeatures(physdevice, &supportedFeatures);
 
-	return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+	return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy && supportedFeatures.fillModeNonSolid;
 }
 
 bool VulkanDevice::checkDeviceExtensionSupport(VkPhysicalDevice physdevice)

@@ -49,8 +49,6 @@ void VulkanCommandBuffers::recordCommandBuffer(
 		throw std::runtime_error("failed to begin recording command buffer!");
 	}
 
-
-
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = renderPass;

@@ -24,6 +24,11 @@ struct ObjectUniformBufferObject
 	// Later could add material IDs or other per-object shader params
 };
 
+struct TessellationUBO {
+	float tessellationLevel = 16.0f; // Default inner/outer level
+	float displacementScale = 0.1f; // Default displacement depth
+};
+
 class VulkanUniformBuffers
 {
 public:
@@ -31,12 +36,14 @@ public:
 	~VulkanUniformBuffers();
 
 	void create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames, 
-		VkDeviceSize totalBufferSize = sizeof(FrameUniformBufferObject),
+		VkDeviceSize totalBufferSize,
 		bool isDynamic = false);
 
 	void destroy();
 
-	void update(uint32_t frameIndex, const FrameUniformBufferObject ubo);
+	//void update(uint32_t frameIndex, const FrameUniformBufferObject ubo);
+	template<typename T>
+	void update(uint32_t frameIndex, const T& ubo);
 
 	void updateDynamic(uint32_t frameIndex, uint32_t objectIndex, const ObjectUniformBufferObject& ubo);
 
@@ -54,6 +61,7 @@ private:
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 	std::vector<void*> uniformBuffersMapped;
+	VkDeviceSize bufferSize;
 
 	VkDevice device;
 	uint32_t frameCount;

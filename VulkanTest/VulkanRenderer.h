@@ -56,6 +56,7 @@ public:
     // framebufferResized: A reference to the flag in the main application.
     // recreateSwapChainCallback: A function to call if the swapchain needs recreation from drawFrame.
     void drawFrame(
+        VkPipeline pipelineToUse,
         std::function<FrameUniformBufferObject()> uboDataProvider,
         bool& framebufferResized,
         std::function<void()> recreateSwapChainCallback,

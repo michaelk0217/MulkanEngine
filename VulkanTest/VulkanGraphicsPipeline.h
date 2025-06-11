@@ -14,7 +14,16 @@ public:
 	VulkanGraphicsPipeline();
 	~VulkanGraphicsPipeline();
 	
-	void create(VkDevice vkDevice, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& vertShaderPath, const std::string& fragShaderPath);
+	void create(
+		VkDevice vkDevice, 
+		VkPipelineLayout pipelineLayout, 
+		VkRenderPass renderPass, 
+		const std::string& vertShaderPath, 
+		const std::string& fragShaderPath, 
+		const std::string& tescShaderPath, 
+		const std::string& teseShaderPath,
+		VkPolygonMode polygoneMode
+	);
 	void destroy();
 
 	VkPipeline getVkPipeline() const;

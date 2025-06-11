@@ -167,7 +167,7 @@ void VulkanDescriptorSets::createForMaterials(
 	VkDevice device, VkDescriptorPool descriptorPool, 
 	VkDescriptorSetLayout descriptorSetLayout, uint32_t numFrames, 
 	const std::vector<VkBuffer> frameUboBuffers, const std::vector<VkBuffer> objectDUBuffers, 
-	const std::vector<VkBuffer> lightingUboBuffers,
+	const std::vector<VkBuffer> lightingUboBuffers, const std::vector<VkBuffer> tessUboBuffers,
 	std::map<std::string, std::shared_ptr<Material>>& materials)
 {
 	this->device = device;
@@ -223,7 +223,17 @@ void VulkanDescriptorSets::createForMaterials(
 			ormMapImageInfo.imageView = material->ormMap->getImageView();
 			ormMapImageInfo.sampler = material->ormMap->getSampler();
 
-			std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
+			VkDescriptorImageInfo displacementMapImageInfo{};
+			displacementMapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			displacementMapImageInfo.imageView = material->displacementMap->getImageView();
+			displacementMapImageInfo.sampler = material->displacementMap->getSampler();
+
+			VkDescriptorBufferInfo tessBufferInfo{};
+			tessBufferInfo.buffer = tessUboBuffers[i];
+			tessBufferInfo.offset = 0;
+			tessBufferInfo.range = sizeof(TessellationUBO);
+
+			std::array<VkWriteDescriptorSet, 8> descriptorWrites{};
 
 			// Frame UBO
 			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -278,6 +288,24 @@ void VulkanDescriptorSets::createForMaterials(
 			descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[5].descriptorCount = 1;
 			descriptorWrites[5].pImageInfo = &ormMapImageInfo;
+
+			// Material Displacement Map UBO
+			descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[6].dstSet = material->frameSpecificDescriptorSets[i];
+			descriptorWrites[6].dstBinding = 6;
+			descriptorWrites[6].dstArrayElement = 0;
+			descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[6].descriptorCount = 1;
+			descriptorWrites[6].pImageInfo = &displacementMapImageInfo;
+
+			// Tessellation UBO
+			descriptorWrites[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[7].dstSet = material->frameSpecificDescriptorSets[i];
+			descriptorWrites[7].dstBinding = 7;
+			descriptorWrites[7].dstArrayElement = 0;
+			descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrites[7].descriptorCount = 1;
+			descriptorWrites[7].pBufferInfo = &tessBufferInfo;
 
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
