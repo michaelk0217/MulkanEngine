@@ -21,6 +21,8 @@
 - **Validation Layer Integration**: Robust error checking during development.
 - **Rendering multiple objects using dynamic uniform buffers**: enables efficient rendering of multiple objects without duplications.
 - **Physically Based Rendering (PBR)**: Higher visual fidelity, compatible only with ORM (ARM) maps.
+- **Tessellation for Displacement maps**
+- **Wireframe mode**: Runs a separate graphics pipeline for mesh / tessellation debugging. Toggle on / off using 'M' key.
 
 
 ## Showcase / Visuals
@@ -67,7 +69,7 @@
         - Albedo: The base color.
         - Normals: TO give surfaces fine-grained detail.
         - Metallic/Roughness: For the core PBR metalness workflow - to define whether a surface is metal or dielectric / how rough or smooth it is.
-        - Ambient Occulsion (AO): Pre-calculated Shadows for samll crevices to add depth
+        - Ambient Occulsion (AO): Pre-calculated Shadows for small crevices to add depth
     - [x] Light Sources
     - [ ] New UBOs: To store an array of lights and their properties, which will be accessible to the fragment shader.
     - [ ] Updated Shaders
