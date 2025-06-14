@@ -177,7 +177,7 @@ private:
 
 		const uint32_t WIDTH_CONST = 3840;
 		const uint32_t HEIGHT_CONST = 2160;
-		const std::string TITLE = "Vulkan";
+		const std::string TITLE = "Mulkan Engine";
 		try
 		{
 			window = std::make_unique<Window>(WIDTH_CONST, HEIGHT_CONST, TITLE);

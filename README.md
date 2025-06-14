@@ -28,6 +28,9 @@
 
 ## Showcase / Visuals
 
+![PBR Preview](doc_assets/pbr_screenshot.png)
+![Wireframe Preview](doc_assets/wireframe_screenshot.png)
+
 ## Technologies Used
 
 - **Graphics API**: VulkanSDK (version)
