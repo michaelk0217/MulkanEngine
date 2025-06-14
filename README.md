@@ -23,6 +23,7 @@
 - **Physically Based Rendering (PBR)**: Higher visual fidelity, compatible only with ORM (ARM) maps.
 - **Tessellation for Displacement maps**
 - **Wireframe mode**: Runs a separate graphics pipeline for mesh / tessellation debugging. Toggle on / off using 'M' key.
+- **HDR Skybox**: Runs offscreen render to convert 2D HDR image into cubemap suitable for skybox.
 
 
 ## Showcase / Visuals
@@ -33,13 +34,14 @@
 - **Language**: C++17, GLSL
 - **Windowing/Input**: GLFW
 - **Math Library**: GLM
-- **Debugging/Validation**: Vulkan Validation Layers
+- **Debugging/Validation**: Vulkan Validation Layers, RenderDoc (external)
 - **Build System**:
 - **Texture Loading**: `stb_image`
 - **Model Loading**: `tinyobjloader`
 
 ## Test Model Sources
 - [AmbientCG](https://ambientcg.com/)
+- [PolyHaven](https://polyhaven.com/)
 
 ## 📦 Getting Started
 
