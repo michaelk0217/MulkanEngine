@@ -11,6 +11,8 @@ public:
 	~VulkanDescriptorSetLayout();
 
 	void create(VkDevice vkdevice);
+	void createForSkybox(VkDevice device);
+	void createForCubmapConversion(VkDevice device);
 	void destroy();
 
 	VkDescriptorSetLayout getVkDescriptorSetLayout() const;

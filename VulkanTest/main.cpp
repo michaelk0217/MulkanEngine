@@ -52,14 +52,6 @@
 #include "Lights.h"
 
 
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
-
-const std::string MODEL_PATH = "models/viking_room.obj";
-const std::string TEXTURE_PATH = "textures/viking_room.png";
-
-//const int MAX_FRAMES_IN_FLIGHT = 2;
-
 const std::vector<const char*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
 };
@@ -118,14 +110,21 @@ private:
 	std::unique_ptr<VulkanSwapChain> swapChainObj;
 
 	std::unique_ptr<VulkanRenderPass> renderPass;
-	std::unique_ptr<VulkanDescriptorSetLayout> descriptorSetLayout;
 	std::unique_ptr<VulkanDescriptorPool> descriptorPool;
-	std::unique_ptr<VulkanDescriptorSets> descriptorSets;
-	std::unique_ptr<VulkanPipelineLayout> pipelineLayout;
+
+	std::unique_ptr<VulkanDescriptorSetLayout> m_pbrDescriptorSetLayout;
+	std::unique_ptr<VulkanDescriptorSets> m_pbrDescriptorSets;
+	std::unique_ptr<VulkanPipelineLayout> m_pbrPipelineLayout;
+
+	std::unique_ptr<VulkanDescriptorSetLayout> m_skyboxDescriptorSetLayout;
+	std::unique_ptr<VulkanDescriptorSets> m_skyboxDescriptorSets;
+	std::unique_ptr<VulkanPipelineLayout> m_skyboxPipelineLayout;
+	std::unique_ptr<VulkanVertexBuffer> m_cubeVertexBuffer;
 
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineWireframe;
 	bool m_WireframeMode = false;
+	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineSkybox;
 
 	std::unique_ptr<VulkanFramebuffers> swapChainFramebuffers;
 
@@ -140,8 +139,8 @@ private:
 
 	std::unique_ptr<VulkanRenderer> renderer;
 
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
+	//std::vector<Vertex> vertices;
+	//std::vector<uint32_t> indices;
 
 	std::unique_ptr<Camera> camera;
 
@@ -156,22 +155,22 @@ private:
 	std::map<std::string, std::unique_ptr<VulkanVertexBuffer>> loadedVertexBuffers;
 	std::map<std::string, std::unique_ptr<VulkanIndexBuffer>> loadedIndexBuffers;
 	std::map<std::string, std::uint32_t> meshIndexCounts;
-
-	// mapped with texture path string
-	//std::map<std::string, std::unique_ptr<VulkanTexture>> loadedTextures;
-
 	std::map<std::string, std::shared_ptr<Material>> loadedMaterials;
 
 	std::vector<RenderableObject> renderableObjects;
+
+	std::unique_ptr<VulkanTexture> skyboxTexture;
 
 	// UniformBuffers
 	std::unique_ptr<VulkanUniformBuffers> frameUboManager;
 	std::unique_ptr<VulkanUniformBuffers> objectDataDUBManager;
 	std::unique_ptr<VulkanUniformBuffers> lightingUboManager;
-	SceneLightingUBO sceneLights; // CPU SIDE DATA
+	SceneLightingUBO sceneLights{}; // CPU SIDE DATA
 	std::unique_ptr<VulkanUniformBuffers> tessellationUboManager;
 	TessellationUBO tessUboData; // CPU SIDE DATA
 	// -------------------------------------
+
+
 
 	void initWindow()
 	{
@@ -225,17 +224,23 @@ private:
 		renderPass = std::make_unique<VulkanRenderPass>();
 		renderPass->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), swapChainObj->getImageFormat());
 
-		descriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
-		descriptorSetLayout->create(devices->getLogicalDevice());
+		m_pbrDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
+		m_pbrDescriptorSetLayout->create(devices->getLogicalDevice());
 
-		pipelineLayout = std::make_unique<VulkanPipelineLayout>();
-		pipelineLayout->create(devices->getLogicalDevice(), descriptorSetLayout->getVkDescriptorSetLayout());
+		m_pbrPipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		m_pbrPipelineLayout->create(devices->getLogicalDevice(), m_pbrDescriptorSetLayout->getVkDescriptorSetLayout());
+
+		m_skyboxDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
+		m_skyboxDescriptorSetLayout->createForSkybox(devices->getLogicalDevice());
+
+		m_skyboxPipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		m_skyboxPipelineLayout->create(devices->getLogicalDevice(), m_skyboxDescriptorSetLayout->getVkDescriptorSetLayout());
 
 		// --- Graphics Pipieline ---
 		m_GraphicsPipelineFill = std::make_unique<VulkanGraphicsPipeline>();
 		m_GraphicsPipelineFill->create(
 			devices->getLogicalDevice(), 
-			pipelineLayout->getVkPipelineLayout(),
+			m_pbrPipelineLayout->getVkPipelineLayout(),
 			renderPass->getVkRenderPass(), 
 			"shaders/tess.vert.spv", 
 			"shaders/frag.spv",
@@ -243,18 +248,14 @@ private:
 			"shaders/tess.tese.spv",
 			VK_POLYGON_MODE_FILL
 		);
-
-
-
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceFeatures(devices->getPhysicalDevice(), &deviceFeatures);
-		
 		if (deviceFeatures.fillModeNonSolid)
 		{
 			m_GraphicsPipelineWireframe = std::make_unique<VulkanGraphicsPipeline>();
 			m_GraphicsPipelineWireframe->create(
 				devices->getLogicalDevice(),
-				pipelineLayout->getVkPipelineLayout(),
+				m_pbrPipelineLayout->getVkPipelineLayout(),
 				renderPass->getVkRenderPass(),
 				"shaders/tess.vert.spv",
 				"shaders/wireframe.frag.spv",
@@ -263,6 +264,16 @@ private:
 				VK_POLYGON_MODE_LINE // Specify line mode
 			);
 		}
+
+		// Skybox Graphics Pipeline
+		m_GraphicsPipelineSkybox = std::make_unique<VulkanGraphicsPipeline>();
+		m_GraphicsPipelineSkybox->createSkybox(
+			devices->getLogicalDevice(),
+			m_skyboxPipelineLayout->getVkPipelineLayout(),
+			renderPass->getVkRenderPass(),
+			"shaders/skybox.vert.spv",
+			"shaders/skybox.frag.spv"
+		);
 		// ---------------------------
 
 		commandPool = std::make_unique<VulkanCommandPool>();
@@ -274,7 +285,26 @@ private:
 		swapChainFramebuffers = std::make_unique<VulkanFramebuffers>();
 		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
 
+		// --- assets ---
+
 		loadAssetsAndCreateRenderables();
+		
+		descriptorPool = std::make_unique<VulkanDescriptorPool>(); // load descriptorsets after populating renderableObjects
+		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(renderableObjects.size()));
+
+		auto hdrSourceTexture = std::make_unique <VulkanTexture>();
+		hdrSourceTexture->createTextureHDR(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/skybox/kloppenheim_06_puresky_4k.hdr");
+
+		const uint32_t cubemapSize = 1024;
+		skyboxTexture = std::make_unique<VulkanTexture>();
+		skyboxTexture->createCubemap(devices->getLogicalDevice(), devices->getPhysicalDevice(), cubemapSize, cubemapSize);
+
+		loadCubeModel();
+
+		generateSkyboxCubeMap(*hdrSourceTexture, *skyboxTexture, cubemapSize);
+
+		hdrSourceTexture->destroy();
+		hdrSourceTexture.reset();
 
 		// --- uniform buffers ---
 		frameUboManager = std::make_unique<VulkanUniformBuffers>();
@@ -295,15 +325,11 @@ private:
 		tessellationUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(TessellationUBO));
 
 		// ------------------------
-
-		descriptorPool = std::make_unique<VulkanDescriptorPool>();
-		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(renderableObjects.size()));
-
-		descriptorSets = std::make_unique<VulkanDescriptorSets>();
-		descriptorSets->createForMaterials(
+		m_pbrDescriptorSets = std::make_unique<VulkanDescriptorSets>();
+		m_pbrDescriptorSets->createForMaterials(
 			devices->getLogicalDevice(),
 			descriptorPool->getVkDescriptorPool(),
-			descriptorSetLayout->getVkDescriptorSetLayout(),
+			m_pbrDescriptorSetLayout->getVkDescriptorSetLayout(),
 			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
 			frameUboManager->getBuffers(),
 			objectDataDUBManager->getBuffers(),
@@ -311,6 +337,17 @@ private:
 			tessellationUboManager->getBuffers(),
 			loadedMaterials
 		);
+
+		m_skyboxDescriptorSets = std::make_unique<VulkanDescriptorSets>();
+		m_skyboxDescriptorSets->createForSkybox(
+			devices->getLogicalDevice(),
+			descriptorPool->getVkDescriptorPool(),
+			m_skyboxDescriptorSetLayout->getVkDescriptorSetLayout(),
+			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
+			frameUboManager->getBuffers(),
+			*skyboxTexture
+		);
+
 
 		commandBuffers = std::make_unique<VulkanCommandBuffers>();
 		commandBuffers->create(devices->getLogicalDevice(), commandPool->getVkCommandPool(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT);
@@ -322,8 +359,7 @@ private:
 			*devices,            // Pass by reference
 			*swapChainObj,
 			*renderPass,
-			*pipelineLayout,
-			*m_GraphicsPipelineFill,
+			*m_pbrPipelineLayout,
 			*swapChainFramebuffers,
 			*commandBuffers,
 			*frameUboManager,
@@ -368,27 +404,6 @@ private:
 
 			camera->processKeyboard(window->getKeys(), deltaTime);
 			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
-
-			 /*if (window->getKeys()[GLFW_KEY_UP] && !up_KeyPressed)
-			 { 
-				 tessLevelIndex = std::min(tessLevelIndex + 1, tessLevelValue.size() - 1);
-				 tessUboData.tessellationLevel = tessLevelValue[tessLevelIndex];
-				 up_KeyPressed = true;
-			 }
-			 if (!window->getKeys()[GLFW_KEY_UP])
-			 {
-				 up_KeyPressed = false;
-			 }
-			 if (window->getKeys()[GLFW_KEY_DOWN] && !down_KeyPressed)
-			 { 
-				 tessLevelIndex = std::max(static_cast<size_t>(0), tessLevelIndex - 1);
-				 tessUboData.tessellationLevel = tessLevelValue[tessLevelIndex];
-				 down_KeyPressed = true;
-			 }
-			 if (!window->getKeys()[GLFW_KEY_DOWN])
-			 {
-				 down_KeyPressed = false;
-			 }*/
 
 			 // Safely check key states with bounds validation
 			const auto& keys = window->getKeys();
@@ -480,7 +495,11 @@ private:
 				framebufferResized,
 				[this]() { return this->recreateSwapChain(); },
 				renderableObjects,
-				objectDataDUBManager->getDynamicAlignment()
+				objectDataDUBManager->getDynamicAlignment(),
+				m_GraphicsPipelineSkybox->getVkPipeline(),
+				m_cubeVertexBuffer->getVkBuffer(),
+				m_skyboxDescriptorSets->getVkDescriptorSets(),
+				m_skyboxPipelineLayout->getVkPipelineLayout()
 			);
 		}
 
@@ -520,11 +539,8 @@ private:
 		}
 		loadedIndexBuffers.clear();
 
-		/*for (auto& pair : loadedTextures)
-		{
-			if (pair.second) pair.second->destroy();
-		}
-		loadedTextures.clear();*/
+		if (skyboxTexture) skyboxTexture->destroy();
+		skyboxTexture.reset();
 
 		for (auto& pair : loadedMaterials)
 		{
@@ -542,6 +558,9 @@ private:
 		}
 		loadedMaterials.clear();
 
+		if (m_cubeVertexBuffer) m_cubeVertexBuffer->destroy();
+		m_cubeVertexBuffer.reset();
+
 		if (frameUboManager) frameUboManager->destroy();
 		frameUboManager.reset();
 
@@ -557,8 +576,8 @@ private:
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
 
-		if (descriptorSets) descriptorSets->destroy();
-		descriptorSets.reset();
+		if (m_pbrDescriptorSets) m_pbrDescriptorSets->destroy();
+		m_pbrDescriptorSets.reset();
 
 		if (descriptorPool) descriptorPool->destroy();
 		descriptorPool.reset();
@@ -569,11 +588,20 @@ private:
 		if (m_GraphicsPipelineWireframe) m_GraphicsPipelineWireframe->destroy();
 		m_GraphicsPipelineWireframe.reset();
 
-		if (pipelineLayout) pipelineLayout->destroy();
-		pipelineLayout.reset();
+		if (m_GraphicsPipelineSkybox) m_GraphicsPipelineSkybox->destroy();
+		m_GraphicsPipelineSkybox.reset();
 
-		if (descriptorSetLayout) descriptorSetLayout->destroy();
-		descriptorSetLayout.reset();
+		if (m_pbrPipelineLayout) m_pbrPipelineLayout->destroy();
+		m_pbrPipelineLayout.reset();
+
+		if (m_skyboxPipelineLayout) m_skyboxPipelineLayout->destroy();
+		m_skyboxPipelineLayout.reset();
+
+		if (m_pbrDescriptorSetLayout) m_pbrDescriptorSetLayout->destroy();
+		m_pbrDescriptorSetLayout.reset();
+
+		if (m_skyboxDescriptorSetLayout) m_skyboxDescriptorSetLayout->destroy();
+		m_skyboxDescriptorSetLayout.reset();
 
 		if (renderPass) renderPass->destroy();
 		renderPass.reset();
@@ -694,36 +722,36 @@ private:
 				// --- Load/Get Material ---
 				auto material = std::make_shared<Material>();
 				auto albedo = std::make_shared<VulkanTexture>();
-				albedo->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.albedoPath);
+				albedo->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.albedoPath);
 				
 				auto normal = std::make_shared<VulkanTexture>();
 				if (def.normalPath.size() == 0)
 				{
-					normal->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_normal.png");
+					normal->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_normal.png");
 				}
 				else
 				{
-					normal->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.normalPath);
+					normal->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.normalPath);
 				}
 				
 				auto orm = std::make_shared<VulkanTexture>();
 				if (def.ormPath.size() == 0)
 				{
-					orm->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_orm.png");
+					orm->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_orm.png");
 				}
 				else
 				{
-					orm->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.ormPath);
+					orm->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.ormPath);
 				}
 
 				auto displacement = std::make_shared<VulkanTexture>();
 				if (def.displacementPath.size() == 0)
 				{
-					displacement->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), "textures/default_orm.png");
+					displacement->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_orm.png");
 				}
 				else
 				{
-					displacement->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), commandPool->getVkCommandPool(), devices->getGraphicsQueue(), def.displacementPath);
+					displacement->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.displacementPath);
 				}
 				
 
@@ -790,6 +818,244 @@ private:
 
 			objectDataDUBManager->updateDynamic(currentFrameIndex, i, objectUbo);
 		}
+	}
+
+	void generateSkyboxCubeMap(VulkanTexture& hdrSourceTexture, VulkanTexture& destinationCubemap, uint32_t cubemapSize)
+	{
+		auto conversionRenderPass = std::make_unique<VulkanRenderPass>();
+		conversionRenderPass->offscreen_rendering_create(devices->getLogicalDevice(), devices->getPhysicalDevice());
+	
+		auto conversionLayout = std::make_unique<VulkanDescriptorSetLayout>();
+		conversionLayout->createForCubmapConversion(devices->getLogicalDevice());
+
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(glm::mat4);
+
+		auto conversionPipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		conversionPipelineLayout->create(devices->getLogicalDevice(), conversionLayout->getVkDescriptorSetLayout(), 1, &pushConstantRange);
+
+		// descriptor set for 2D HDR texture that is being sampled NOW
+		auto conversionDescriptorSet = std::make_unique<VulkanDescriptorSets>();
+		conversionDescriptorSet->createForCubeMapConversion(devices->getLogicalDevice(), descriptorPool->getVkDescriptorPool(), conversionLayout->getVkDescriptorSetLayout(), hdrSourceTexture);
+		
+		auto conversionPipeline = std::make_unique<VulkanGraphicsPipeline>();
+		conversionPipeline->createForConversion(
+			devices->getLogicalDevice(),
+			conversionPipelineLayout->getVkPipelineLayout(),
+			conversionRenderPass->getVkRenderPass(),
+			"shaders/equidirect_to_cube.vert.spv",
+			"shaders/equidirect_to_cube.frag.spv"
+		);
+
+		std::vector<VkFramebuffer> framebuffers(6);
+		std::vector<VkImageView> faceViews(6);
+
+		for (uint32_t i = 0; i < 6; ++i) {
+			// Create a temporary image view for a SINGLE face of the cubemap
+			VkImageViewCreateInfo viewInfo{};
+			viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewInfo.image = destinationCubemap.getImage(); // The image handle from the cubemap object
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewInfo.subresourceRange.baseMipLevel = 0;
+			viewInfo.subresourceRange.levelCount = 1;
+			viewInfo.subresourceRange.baseArrayLayer = i; // This selects the face
+			viewInfo.subresourceRange.layerCount = 1;
+
+			vkCreateImageView(devices->getLogicalDevice(), &viewInfo, nullptr, &faceViews[i]);
+
+			VkFramebufferCreateInfo fbInfo{};
+			fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			fbInfo.renderPass = conversionRenderPass->getVkRenderPass();
+			fbInfo.attachmentCount = 1;
+			fbInfo.pAttachments = &faceViews[i];
+			fbInfo.width = cubemapSize;
+			fbInfo.height = cubemapSize;
+			fbInfo.layers = 1;
+
+			vkCreateFramebuffer(devices->getLogicalDevice(), &fbInfo, nullptr, &framebuffers[i]);
+
+		}
+
+		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		captureProjection[1][1] *= -1;
+
+		glm::mat4 captureViews[] =
+		{
+			// Right (+X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Left (-X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(-1.0f, 0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+
+			// This is the view for LOOKING DOWN, which we store in the TOP (+Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+
+			// This is the view for LOOKING UP, which we store in the BOTTOM (-Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+
+			// Back (+Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Front (-Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+	
+		VkCommandBuffer cmd = VulkanCommandBuffers::beginSingleTimeCommands(devices->getLogicalDevice(), commandPool->getVkCommandPool());
+
+		for (uint32_t i = 0; i < 6; i++)
+		{
+			VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} }; // Define a clear color
+
+			VkRenderPassBeginInfo renderPassBeginInfo{};
+			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			renderPassBeginInfo.renderPass = conversionRenderPass->getVkRenderPass();
+			renderPassBeginInfo.framebuffer = framebuffers[i];
+			renderPassBeginInfo.renderArea.extent.width = cubemapSize;
+			renderPassBeginInfo.renderArea.extent.height = cubemapSize;
+			renderPassBeginInfo.renderArea.offset = { 0, 0 };
+			renderPassBeginInfo.clearValueCount = 1;
+			renderPassBeginInfo.pClearValues = &clearColor;
+
+			vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+			VkViewport viewport = { 0.0f, 0.0f, (float)cubemapSize, (float)cubemapSize, 0.0f, 1.0f };
+			VkRect2D scissor = { {0, 0}, {cubemapSize, cubemapSize} };
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, conversionPipeline->getVkPipeline());
+
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				conversionPipelineLayout->getVkPipelineLayout(),
+				0, 1,
+				conversionDescriptorSet->getVkDescriptorSetsRaw(),
+				0, nullptr
+			);
+			
+			glm::mat4 mvp = captureProjection * captureViews[i];
+			vkCmdPushConstants(cmd, conversionPipelineLayout->getVkPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
+
+			VkBuffer vertexBuffers[] = { m_cubeVertexBuffer->getVkBuffer() };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+			// draw 36 vertices of cube
+			vkCmdDraw(cmd, 36, 1, 0, 0);
+
+			vkCmdEndRenderPass(cmd);
+
+		}
+
+		VulkanCommandBuffers::endSingleTimeCommands(cmd, devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool());
+		vkQueueWaitIdle(devices->getGraphicsQueue());
+
+		VulkanImage::transitionImageLayout(
+			devices->getLogicalDevice(),
+			devices->getGraphicsQueue(),
+			commandPool->getVkCommandPool(),
+			destinationCubemap.getImage(),
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			6 // <-- This is the layer count for the whole cubemap
+		);
+
+		for (uint32_t i = 0; i < 6; i++)
+		{
+			vkDestroyFramebuffer(devices->getLogicalDevice(), framebuffers[i], nullptr);
+			vkDestroyImageView(devices->getLogicalDevice(), faceViews[i], nullptr);
+		}
+
+		conversionDescriptorSet->destroy();
+		conversionDescriptorSet.reset();
+
+		conversionPipeline->destroy();
+		conversionPipeline.reset();
+
+		conversionPipelineLayout->destroy();
+		conversionPipelineLayout.reset();
+
+		conversionLayout->destroy();
+		conversionLayout.reset();
+
+		conversionRenderPass->destroy();
+		conversionRenderPass.reset();
+
+	}
+
+	// In VulkanEngine.cpp
+
+	void loadCubeModel() {
+		// A cube has 6 faces, each with 2 triangles, for a total of 36 vertices.
+		// We define a simple unit cube from -1 to 1 in each dimension.
+		// The vertex positions are also the direction vectors we'll use for sampling the cubemap.
+		const std::vector<glm::vec3> cubeVertices = {
+			// positions          
+			// Back face
+			{-1.0f, -1.0f, -1.0f},
+			{ 1.0f,  1.0f, -1.0f},
+			{ 1.0f, -1.0f, -1.0f},
+			{ 1.0f,  1.0f, -1.0f},
+			{-1.0f, -1.0f, -1.0f},
+			{-1.0f,  1.0f, -1.0f},
+			// Front face
+			{-1.0f, -1.0f,  1.0f},
+			{ 1.0f, -1.0f,  1.0f},
+			{ 1.0f,  1.0f,  1.0f},
+			{ 1.0f,  1.0f,  1.0f},
+			{-1.0f,  1.0f,  1.0f},
+			{-1.0f, -1.0f,  1.0f},
+			// Left face
+			{-1.0f,  1.0f,  1.0f},
+			{-1.0f,  1.0f, -1.0f},
+			{-1.0f, -1.0f, -1.0f},
+			{-1.0f, -1.0f, -1.0f},
+			{-1.0f, -1.0f,  1.0f},
+			{-1.0f,  1.0f,  1.0f},
+			// Right face
+			{ 1.0f,  1.0f,  1.0f},
+			{ 1.0f, -1.0f, -1.0f},
+			{ 1.0f,  1.0f, -1.0f},
+			{ 1.0f, -1.0f, -1.0f},
+			{ 1.0f,  1.0f,  1.0f},
+			{ 1.0f, -1.0f,  1.0f},
+			// Bottom face
+			{-1.0f, -1.0f, -1.0f},
+			{ 1.0f, -1.0f, -1.0f},
+			{ 1.0f, -1.0f,  1.0f},
+			{ 1.0f, -1.0f,  1.0f},
+			{-1.0f, -1.0f,  1.0f},
+			{-1.0f, -1.0f, -1.0f},
+			// Top face
+			{-1.0f,  1.0f, -1.0f},
+			{ 1.0f,  1.0f,  1.0f},
+			{ 1.0f,  1.0f, -1.0f},
+			{ 1.0f,  1.0f,  1.0f},
+			{-1.0f,  1.0f, -1.0f},
+			{-1.0f,  1.0f,  1.0f}
+		};
+
+		m_cubeVertexBuffer = std::make_unique<VulkanVertexBuffer>();
+		// Note: Your VulkanVertexBuffer::create function likely takes a vector of `Vertex` structs.
+		// You may need to adapt this call or create an overload that takes `glm::vec3`.
+		// For simplicity, I'll assume you can adapt it.
+
+		// A temporary conversion if your create function needs the full Vertex struct
+		std::vector<Vertex> verticesForBuffer;
+		verticesForBuffer.reserve(cubeVertices.size());
+		for (const auto& pos : cubeVertices) {
+			verticesForBuffer.push_back({ pos, {}, {}, {} }); // Only position is needed
+		}
+
+		m_cubeVertexBuffer->create(
+			devices->getLogicalDevice(),
+			devices->getPhysicalDevice(),
+			devices->getGraphicsQueue(),
+			commandPool->getVkCommandPool(),
+			verticesForBuffer
+		);
 	}
 };
 

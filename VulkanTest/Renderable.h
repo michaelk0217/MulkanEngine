@@ -1,4 +1,5 @@
 #pragma once
+// Renderable.h
 #include <memory>
 #include <string>
 #include <vector>
@@ -48,9 +49,5 @@ struct RenderableObject
     // Object's transformation  
     glm::mat4 modelMatrix = glm::mat4(1.0f);
 
-    // Each object has its own descriptor sets --- Removed: the descriptor sets are now in the Material struct
-    //std::vector<VkDescriptorSet> frameSpecificDescriptorSets;
-
-    //RenderableObject() : frameSpecificDescriptorSets(VulkanGlobals::MAX_FRAMES_IN_FLIGHT) {}
     RenderableObject() = default;
 };

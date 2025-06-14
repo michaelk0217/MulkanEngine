@@ -14,13 +14,34 @@
 class VulkanImage
 {
 public:
-	static void createImage(VkDevice device, VkPhysicalDevice physicalDevice, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	static void createImage(
+		VkDevice device, 
+		VkPhysicalDevice physicalDevice, 
+		uint32_t width, uint32_t height, 
+		VkFormat format, 
+		VkImageTiling tiling, 
+		VkImageUsageFlags usage,
+		VkMemoryPropertyFlags properties, 
+		VkImage& image, 
+		VkDeviceMemory& imageMemory
+	);
 
 	static VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
+	static void createCubeMapImage(
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		uint32_t width, 
+		uint32_t height,
+		VkImage& image,
+		VkDeviceMemory& imageMemory
+	);
+
+	static VkImageView createCubeMapImageView(VkDevice device, VkImage image);
+
 	static VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-	static void transitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	static void transitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount = 1);
 
 	static void copyBufferToImage(VkDevice vkdevice, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 

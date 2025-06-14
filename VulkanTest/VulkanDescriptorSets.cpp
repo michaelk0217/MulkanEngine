@@ -79,90 +79,6 @@ void VulkanDescriptorSets::create(VkDevice vkdevice, VkDescriptorPool descriptor
 
 
 
-//void VulkanDescriptorSets::createForRenderables(
-//	VkDevice device,
-//	VkDescriptorPool descriptorPool,
-//	VkDescriptorSetLayout descriptorSetLayout,
-//	uint32_t numFrames,
-//	const std::vector<VkBuffer> frameUboBuffers,
-//	const std::vector<VkBuffer> objectDUBuffers,
-//	std::vector<RenderableObject>& renderables) // Note the &
-//{
-//	this->device = device;
-//
-//	// Loop through each object that needs descriptor sets
-//	for (auto& renderable : renderables)
-//	{
-//		std::vector<VkDescriptorSetLayout> layouts(numFrames, descriptorSetLayout);
-//		VkDescriptorSetAllocateInfo allocInfo{};
-//		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-//		allocInfo.descriptorPool = descriptorPool;
-//		allocInfo.descriptorSetCount = static_cast<uint32_t>(numFrames);
-//		allocInfo.pSetLayouts = layouts.data();
-//
-//		// Allocate the sets directly into the renderable object's vector
-//		// The vector should already be sized correctly by the RenderableObject constructor.
-//		if (vkAllocateDescriptorSets(device, &allocInfo, renderable.frameSpecificDescriptorSets.data()) != VK_SUCCESS)
-//		{
-//			throw std::runtime_error("failed to allocate descriptor sets for a renderable object!");
-//		}
-//
-//		// Now, update these newly allocated sets for each frame
-//		for (size_t i = 0; i < numFrames; i++)
-//		{
-//			VkDescriptorBufferInfo frameBufferInfo{};
-//			frameBufferInfo.buffer = frameUboBuffers[i];
-//			frameBufferInfo.offset = 0;
-//			frameBufferInfo.range = sizeof(FrameUniformBufferObject);
-//
-//			VkDescriptorBufferInfo objectBufferInfo{};
-//			objectBufferInfo.buffer = objectDUBuffers[i];
-//			objectBufferInfo.offset = 0;
-//			// This is key for dynamic UBOs
-//			objectBufferInfo.range = sizeof(ObjectUniformBufferObject);
-//
-//			VkDescriptorImageInfo imageInfo{};
-//			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//			imageInfo.imageView = renderable.texture->getImageView();
-//			imageInfo.sampler = renderable.texture->getSampler();
-//
-//			std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
-//
-//			// Frame UBO
-//			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-//			descriptorWrites[0].dstSet = renderable.frameSpecificDescriptorSets[i]; // Use the allocated set
-//			descriptorWrites[0].dstBinding = 0;
-//			descriptorWrites[0].dstArrayElement = 0;
-//			descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-//			descriptorWrites[0].descriptorCount = 1;
-//			descriptorWrites[0].pBufferInfo = &frameBufferInfo;
-//
-//			// Object Dynamic UBO
-//			descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-//			descriptorWrites[1].dstSet = renderable.frameSpecificDescriptorSets[i]; // Use the allocated set
-//			descriptorWrites[1].dstBinding = 1;
-//			descriptorWrites[1].dstArrayElement = 0;
-//			descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-//			descriptorWrites[1].descriptorCount = 1;
-//			descriptorWrites[1].pBufferInfo = &objectBufferInfo;
-//
-//			// Texture Sampler
-//			descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-//			descriptorWrites[2].dstSet = renderable.frameSpecificDescriptorSets[i]; // Use the allocated set
-//			descriptorWrites[2].dstBinding = 2;
-//			descriptorWrites[2].dstArrayElement = 0;
-//			descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-//			descriptorWrites[2].descriptorCount = 1;
-//			descriptorWrites[2].pImageInfo = &imageInfo;
-//
-//			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-//		}
-//	}
-//}
-
-
-
-
 void VulkanDescriptorSets::createForMaterials(
 	VkDevice device, VkDescriptorPool descriptorPool, 
 	VkDescriptorSetLayout descriptorSetLayout, uint32_t numFrames, 
@@ -307,12 +223,99 @@ void VulkanDescriptorSets::createForMaterials(
 			descriptorWrites[7].descriptorCount = 1;
 			descriptorWrites[7].pBufferInfo = &tessBufferInfo;
 
-
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}
 	}
-
 }
+
+void VulkanDescriptorSets::createForSkybox(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, uint32_t numFrames, const std::vector<VkBuffer> frameUboBuffers, VulkanTexture& textureObj)
+{
+	std::vector<VkDescriptorSetLayout> layouts(numFrames, descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(numFrames);
+	allocInfo.pSetLayouts = layouts.data();
+
+	descriptorSets.resize(numFrames);
+
+	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to allocate descriptor sets for skybox.");
+	}
+
+	for (size_t i = 0; i < numFrames; i++)
+	{
+		VkDescriptorBufferInfo frameBufferInfo{};
+		frameBufferInfo.buffer = frameUboBuffers[i];
+		frameBufferInfo.offset = 0;
+		frameBufferInfo.range = sizeof(FrameUniformBufferObject);
+
+		VkDescriptorImageInfo skyboxImageInfo{};
+		skyboxImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		skyboxImageInfo.imageView = textureObj.getImageView();
+		skyboxImageInfo.sampler = textureObj.getSampler();
+
+		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
+		// Frame UBO
+		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[0].dstSet = descriptorSets[i];
+		descriptorWrites[0].dstBinding = 0;
+		descriptorWrites[0].dstArrayElement = 0;
+		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[0].descriptorCount = 1;
+		descriptorWrites[0].pBufferInfo = &frameBufferInfo;
+
+		// Skybox Hdr Sampling
+		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[1].dstSet = descriptorSets[i];
+		descriptorWrites[1].dstBinding = 1;
+		descriptorWrites[1].dstArrayElement = 0;
+		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[1].descriptorCount = 1;
+		descriptorWrites[1].pImageInfo = &skyboxImageInfo;
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+	}
+}
+
+void VulkanDescriptorSets::createForCubeMapConversion(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout, VulkanTexture& textureObj)
+{
+	this->device = device;
+	std::vector<VkDescriptorSetLayout> layouts(1, descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = layouts.data();
+
+	descriptorSets.resize(1);
+
+	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to allocate descriptor sets for cubemap conversion.");
+	}
+
+	VkDescriptorImageInfo cubemapImageInfo{};
+	cubemapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	cubemapImageInfo.imageView = textureObj.getImageView();
+	cubemapImageInfo.sampler = textureObj.getSampler();
+
+	std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
+
+	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[0].dstSet = descriptorSets[0];
+	descriptorWrites[0].dstBinding = 0;
+	descriptorWrites[0].dstArrayElement = 0;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[0].descriptorCount = 1;
+	descriptorWrites[0].pImageInfo = &cubemapImageInfo;
+
+	vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+}
+
+
 
 void VulkanDescriptorSets::destroy()
 {
@@ -339,4 +342,14 @@ std::vector<VkDescriptorSet> VulkanDescriptorSets::getVkDescriptorSets() const
 	}
 
 	return descriptorSets;
+}
+
+const VkDescriptorSet* VulkanDescriptorSets::getVkDescriptorSetsRaw() const
+{
+	if (descriptorSets.empty())
+	{
+		throw std::runtime_error("Get descriptor set called before initialization!");
+	}
+
+	return descriptorSets.data();
 }

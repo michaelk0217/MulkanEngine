@@ -28,7 +28,7 @@ public:
         VulkanSwapChain& swapChain,
         VulkanRenderPass& renderPass,
         VulkanPipelineLayout& pipelineLayout,
-        VulkanGraphicsPipeline& graphicsPipeline,
+        //VulkanGraphicsPipeline& graphicsPipeline,
         VulkanFramebuffers& framebuffers,
         VulkanCommandBuffers& commandBuffers,
         /*VulkanDescriptorSets& descriptorSets,
@@ -61,7 +61,27 @@ public:
         bool& framebufferResized,
         std::function<void()> recreateSwapChainCallback,
         const std::vector<RenderableObject>& renderables,
-        VkDeviceSize dynamicUboAlignment
+        VkDeviceSize dynamicUboAlignment,
+        VkPipeline skyboxGraphicsPipeline,
+        VkBuffer skyboxVertexBuffer,
+        std::vector<VkDescriptorSet> skyboxDescriptorSets,
+        VkPipelineLayout skyboxPipelineLayout
+    );
+
+    static void recordCommandBuffer(
+        VkCommandBuffer commandBuffer,
+        uint32_t currentFrameIndex,
+        VkRenderPass renderPass,
+        VkPipelineLayout pipelineLayout,
+        VkPipeline graphicsPipeline,
+        VkFramebuffer swapChainFramebuffer,
+        VkExtent2D swapChainExtent,
+        const std::vector<RenderableObject>& renderables,
+        VkDeviceSize dynamicUboAlignment,
+        VkPipeline skyboxGraphicsPipeline = VK_NULL_HANDLE,
+        VkBuffer skyboxVertexBuffer = VK_NULL_HANDLE,
+        std::vector<VkDescriptorSet> skyboxDescriptorSets = {},
+        VkPipelineLayout skyboxPipelineLayout = VK_NULL_HANDLE
     );
 
 private:
@@ -70,7 +90,7 @@ private:
     VulkanSwapChain& swapChainObj;
     VulkanRenderPass& vkRenderPass; // Using a different name to avoid confusion if original was also named renderPass
     VulkanPipelineLayout& vkPipelineLayout;
-    VulkanGraphicsPipeline& vkGraphicsPipeline;
+    //VulkanGraphicsPipeline& vkGraphicsPipeline;
     VulkanFramebuffers& swapChainFramebuffersObj;
     VulkanCommandBuffers& vkCommandBuffers;
     //VulkanDescriptorSets& vkDescriptorSets;

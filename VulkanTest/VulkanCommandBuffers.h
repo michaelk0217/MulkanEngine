@@ -17,18 +17,18 @@ public:
 
 	void create(VkDevice vkdevice, VkCommandPool commandPool, uint32_t maxFrames);
 
-	// records draw commands	
-	static void recordCommandBuffer(
-		VkCommandBuffer commandBuffer,
-		uint32_t currentFrame,
-		VkRenderPass renderPass,
-		VkPipelineLayout pipelineLayout,
-		VkPipeline graphicsPipeline,
-		VkFramebuffer swapChainFramebuffer,
-		VkExtent2D swapChainExtent,
-		//const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<RenderableObject>& renderables,
-		VkDeviceSize dynamicUboAlignment);
+	//// records draw commands	
+	//static void recordCommandBuffer(
+	//	VkCommandBuffer commandBuffer,
+	//	uint32_t currentFrame,
+	//	VkRenderPass renderPass,
+	//	VkPipelineLayout pipelineLayout,
+	//	VkPipeline graphicsPipeline,
+	//	VkFramebuffer swapChainFramebuffer,
+	//	VkExtent2D swapChainExtent,
+	//	//const std::vector<VkDescriptorSet>& descriptorSets,
+	//	const std::vector<RenderableObject>& renderables,
+	//	VkDeviceSize dynamicUboAlignment);
 
 	static VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool);
 	static void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool);

@@ -91,6 +91,67 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	}
 }
 
+void VulkanDescriptorSetLayout::createForSkybox(VkDevice device)
+{
+	this->device = device;
+
+	VkDescriptorSetLayoutBinding frameUboLayoutBinding{};
+	frameUboLayoutBinding.binding = 0; // For FrameUBO (view/proj)
+	frameUboLayoutBinding.descriptorCount = 1;
+	frameUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	frameUboLayoutBinding.pImmutableSamplers = nullptr;
+	frameUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutBinding skyboxSamplerBinding{};
+	skyboxSamplerBinding.binding = 1;
+	skyboxSamplerBinding.descriptorCount = 1;
+	skyboxSamplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	skyboxSamplerBinding.pImmutableSamplers = nullptr;
+	skyboxSamplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
+		frameUboLayoutBinding,
+		skyboxSamplerBinding
+	};
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo{};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.pBindings = bindings.data();
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to create skybox descriptor set layout!");
+	}
+}
+
+void VulkanDescriptorSetLayout::createForCubmapConversion(VkDevice device)
+{
+	this->device = device;
+
+	VkDescriptorSetLayoutBinding hdrSamplerBinding{};
+	hdrSamplerBinding.binding = 0;
+	hdrSamplerBinding.descriptorCount = 1;
+	hdrSamplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	hdrSamplerBinding.pImmutableSamplers = nullptr;
+	hdrSamplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
+		hdrSamplerBinding
+	};
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo{};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.pBindings = bindings.data();
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to create cubmap conversion descriptor set layout!");
+	}
+}
+
+
 void VulkanDescriptorSetLayout::destroy()
 {
 	if (descriptorSetLayout != VK_NULL_HANDLE)

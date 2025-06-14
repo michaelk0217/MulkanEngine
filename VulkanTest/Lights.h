@@ -1,4 +1,5 @@
 #pragma once
+// Lights.h
 #include <glm/glm.hpp>
 
 struct DirectionalLight

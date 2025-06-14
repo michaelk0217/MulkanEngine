@@ -24,6 +24,23 @@ public:
 		const std::string& teseShaderPath,
 		VkPolygonMode polygoneMode
 	);
+
+	void createSkybox(
+		VkDevice vkDevice,
+		VkPipelineLayout pipelineLayout,
+		VkRenderPass renderPass,
+		const std::string& vertShaderPath,
+		const std::string& fragShaderPath
+	);
+
+	void createForConversion(
+		VkDevice device,
+		VkPipelineLayout pipelineLayout,
+		VkRenderPass renderPass,
+		const std::string& vertShaderPath,
+		const std::string& fragShaderPath
+	);
+
 	void destroy();
 
 	VkPipeline getVkPipeline() const;

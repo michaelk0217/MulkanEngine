@@ -9,15 +9,19 @@ VulkanPipelineLayout::~VulkanPipelineLayout()
 	destroy();
 }
 
-void VulkanPipelineLayout::create(VkDevice vkdevice, VkDescriptorSetLayout descriptorSetLayout)
+void VulkanPipelineLayout::create(
+	VkDevice vkdevice, 
+	VkDescriptorSetLayout descriptorSetLayout, 
+	uint32_t pushConstantRangeCount, 
+	const VkPushConstantRange* pPushConstantRanges)
 {
 	device = vkdevice;
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = pushConstantRangeCount;
+	pipelineLayoutInfo.pPushConstantRanges = pPushConstantRanges;
 
 	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 	{

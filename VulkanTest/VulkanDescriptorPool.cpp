@@ -6,48 +6,47 @@ VulkanDescriptorPool::VulkanDescriptorPool() : descriptorPool(VK_NULL_HANDLE), d
 
 VulkanDescriptorPool::~VulkanDescriptorPool()
 {
-	destroy();
+	destroy(); 
 }
 
 void VulkanDescriptorPool::create(VkDevice device, uint32_t maxFramesInFlight, uint32_t objectCount)
 {
 	this->device = device;
 
-	uint32_t totalSetCount = maxFramesInFlight * objectCount;
+	// We only need 3 pool size entries, one for each unique descriptor type we use.
+	std::array<VkDescriptorPoolSize, 3> poolSizes{};
 
-	std::array<VkDescriptorPoolSize, 8> poolSizes{};
-	// Frame Ubo
+	// --- UNIFORM BUFFERS (Standard) ---
+	// PBR Materials: (Frame + Lighting + Tessellation) * objectCount * frames
+	// Skybox: (Frame) * frames
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = totalSetCount;
-	// Object Ubo
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-	poolSizes[1].descriptorCount = totalSetCount;
-	// Lighting Ubo
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[2].descriptorCount = totalSetCount;
-	// albedo Sampler Ubo
-	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[3].descriptorCount = totalSetCount;
-	// normal Sampler Ubo
-	poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[4].descriptorCount = totalSetCount;
-	// orm Sampler Ubo
-	poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[5].descriptorCount = totalSetCount;
-	// displacement sampler Ubo
-	poolSizes[6].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[6].descriptorCount = totalSetCount;
-	// tessellation Ubo
-	poolSizes[7].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[7].descriptorCount = totalSetCount;
+	poolSizes[0].descriptorCount = (objectCount * 3 + 1) * maxFramesInFlight;
 
+	// --- UNIFORM BUFFERS (Dynamic) ---
+	// PBR Materials: (Object) * objectCount * frames
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	poolSizes[1].descriptorCount = objectCount * maxFramesInFlight;
+
+	// --- COMBINED IMAGE SAMPLERS ---
+	// PBR Materials: (Albedo + Normal + ORM + Displacement) * objectCount * frames
+	// Skybox: (Cubemap) * frames
+	// Conversion: (2D HDR) * 1
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[2].descriptorCount = (objectCount * 4 + 1) * maxFramesInFlight + 1;
+
+
+	// --- Total Set Count ---
+	// This calculation you had was correct.
+	uint32_t pbrSets = maxFramesInFlight * objectCount;
+	uint32_t skyboxSets = maxFramesInFlight;
+	uint32_t conversionSets = 1;
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT; // Good practice to add this flag
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	//poolInfo.maxSets = static_cast<uint32_t>(maxFramesInFlight);
-	poolInfo.maxSets = totalSetCount;
+	poolInfo.maxSets = pbrSets + skyboxSets + conversionSets;
 
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
 	{
