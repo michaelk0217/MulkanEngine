@@ -15,6 +15,10 @@ VulkanTexture::~VulkanTexture()
 
 void VulkanTexture::destroy()
 {
+	if (device == VK_NULL_HANDLE)
+	{
+		return;
+	}
 	if (textureSampler != VK_NULL_HANDLE)
 	{
 		vkDestroySampler(device, textureSampler, nullptr);
@@ -38,6 +42,7 @@ void VulkanTexture::destroy()
 		vkFreeMemory(device, textureImageMemory, nullptr);
 		textureImageMemory = VK_NULL_HANDLE;
 	}
+	device = VK_NULL_HANDLE;
 }
 
 VkImage VulkanTexture::getImage() const

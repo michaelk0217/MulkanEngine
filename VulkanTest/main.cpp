@@ -50,6 +50,7 @@
 #include "Renderable.h"
 #include "Material.h"
 #include "Lights.h"
+#include "AssetManager.h"
 
 
 const std::vector<const char*> validationLayers = {
@@ -96,11 +97,8 @@ public:
 		cleanup();
 	}
 private:
-
-	// GLFW Window
 	std::unique_ptr<Window> window;
 
-	// VkInstance and DebugMessenger
 	std::unique_ptr<VulkanInstance> instance;
 
 	std::unique_ptr<VulkanSurface> surface;
@@ -139,9 +137,6 @@ private:
 
 	std::unique_ptr<VulkanRenderer> renderer;
 
-	//std::vector<Vertex> vertices;
-	//std::vector<uint32_t> indices;
-
 	std::unique_ptr<Camera> camera;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
@@ -150,12 +145,7 @@ private:
 
 
 	// --- Collection of Model resources --- 
-
-	// mapped with mesh path string
-	std::map<std::string, std::unique_ptr<VulkanVertexBuffer>> loadedVertexBuffers;
-	std::map<std::string, std::unique_ptr<VulkanIndexBuffer>> loadedIndexBuffers;
-	std::map<std::string, std::uint32_t> meshIndexCounts;
-	std::map<std::string, std::shared_ptr<Material>> loadedMaterials;
+	std::unique_ptr<AssetManager> m_AssetManager;
 
 	std::vector<RenderableObject> renderableObjects;
 
@@ -170,8 +160,6 @@ private:
 	TessellationUBO tessUboData; // CPU SIDE DATA
 	// -------------------------------------
 
-
-
 	void initWindow()
 	{
 
@@ -181,8 +169,6 @@ private:
 		try
 		{
 			window = std::make_unique<Window>(WIDTH_CONST, HEIGHT_CONST, TITLE);
-			/*window->setUserPointer(this);
-			window->setFramebufferSizeCallback(framebufferResizeCallback);*/
 
 			window->setAppFramebufferResizeCallback([this](int width, int height)
 				{
@@ -207,11 +193,10 @@ private:
 
 	void initVulkan()
 	{
-		// VkInstance
 		instance = std::make_unique<VulkanInstance>();
 		instance->createInstance();
 		instance->setupDebugMessenger(); // Debug
-		// VkSurface
+
 		surface = std::make_unique<VulkanSurface>();
 		surface->createSurface(instance->getVkInstance(), window->getGlfwWindow());
 
@@ -261,7 +246,7 @@ private:
 				"shaders/wireframe.frag.spv",
 				"shaders/tess.tesc.spv",
 				"shaders/tess.tese.spv",
-				VK_POLYGON_MODE_LINE // Specify line mode
+				VK_POLYGON_MODE_LINE
 			);
 		}
 
@@ -286,6 +271,9 @@ private:
 		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
 
 		// --- assets ---
+
+		m_AssetManager = std::make_unique<AssetManager>(devices.get(), commandPool.get());
+
 
 		loadAssetsAndCreateRenderables();
 		
@@ -335,7 +323,7 @@ private:
 			objectDataDUBManager->getBuffers(),
 			lightingUboManager->getBuffers(),
 			tessellationUboManager->getBuffers(),
-			loadedMaterials
+			m_AssetManager->getMaterials()
 		);
 
 		m_skyboxDescriptorSets = std::make_unique<VulkanDescriptorSets>();
@@ -532,36 +520,16 @@ private:
 
 		if (renderer) renderer.reset();
 
-		for (auto& pair : loadedVertexBuffers)
+		for (auto rendrableObj : renderableObjects)
 		{
-			if (pair.second) pair.second->destroy();
 		}
-		loadedVertexBuffers.clear();
+		renderableObjects.clear();
 
-		for (auto& pair : loadedIndexBuffers)
-		{
-			if (pair.second) pair.second->destroy();
-		}
-		loadedIndexBuffers.clear();
+		if (m_AssetManager) m_AssetManager.reset();
 
 		if (skyboxTexture) skyboxTexture->destroy();
 		skyboxTexture.reset();
 
-		for (auto& pair : loadedMaterials)
-		{
-			if (pair.second)
-			{
-				pair.second->albedoMap->destroy();
-				pair.second->albedoMap.reset();
-				pair.second->normalMap->destroy();
-				pair.second->normalMap.reset();
-				pair.second->ormMap->destroy();
-				pair.second->ormMap.reset();
-				pair.second->displacementMap->destroy();
-				pair.second->displacementMap.reset();
-			}
-		}
-		loadedMaterials.clear();
 
 		if (m_skyboxCubeVertexBuffer) m_skyboxCubeVertexBuffer->destroy();
 		m_skyboxCubeVertexBuffer.reset();
@@ -694,97 +662,11 @@ private:
 			}
 		};
 
+		// The entire loading process is now a simple loop.
+		// The AssetManager handles all the complexity of caching and resource creation.
 		for (const auto& def : sceneDefinitions)
 		{
-			if (loadedVertexBuffers.find(def.meshPath) == loadedVertexBuffers.end()) // If mesh is not loaded
-			{
-				// --- Load/Get Mesh ---
-				std::vector<Vertex> vertices;
-				std::vector<uint32_t> indices;
-
-				if (def.meshPath.size() == 0)
-				{
-					ModelLoader::createSphere(2.5, 16, 16, vertices, indices);
-				}
-				else
-				{
-					ModelLoader::loadModel(def.meshPath, vertices, indices);
-				}
-				
-
-				auto vb = std::make_unique<VulkanVertexBuffer>();
-				vb->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), vertices);
-				loadedVertexBuffers[def.meshPath] = std::move(vb);
-				 
-				auto ib = std::make_unique<VulkanIndexBuffer>();
-				ib->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), indices);
-				loadedIndexBuffers[def.meshPath] = std::move(ib);
-				meshIndexCounts[def.meshPath] = static_cast<uint32_t>(indices.size());
-			}
-
-			if (loadedMaterials.find(def.materalName) == loadedMaterials.end())
-			{
-				// --- Load/Get Material ---
-				auto material = std::make_shared<Material>();
-				auto albedo = std::make_shared<VulkanTexture>();
-				albedo->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.albedoPath);
-				
-				auto normal = std::make_shared<VulkanTexture>();
-				if (def.normalPath.size() == 0)
-				{
-					normal->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_normal.png");
-				}
-				else
-				{
-					normal->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.normalPath);
-				}
-				
-				auto orm = std::make_shared<VulkanTexture>();
-				if (def.ormPath.size() == 0)
-				{
-					orm->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_orm.png");
-				}
-				else
-				{
-					orm->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.ormPath);
-				}
-
-				auto displacement = std::make_shared<VulkanTexture>();
-				if (def.displacementPath.size() == 0)
-				{
-					displacement->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/default_orm.png");
-				}
-				else
-				{
-					displacement->createTexture2D(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), def.displacementPath);
-				}
-				
-
-				material->name = def.materalName;
-				material->albedoMap = albedo;
-				material->normalMap = normal;
-				material->ormMap = orm;
-				material->displacementMap = displacement;
-
-				loadedMaterials[def.materalName] = material;
-			}
-
-			// --- Create RenderableObject ---
-			RenderableObject renderable;
-			renderable.vertexBuffer = loadedVertexBuffers[def.meshPath].get();
-			renderable.indexBuffer = loadedIndexBuffers[def.meshPath].get();
-			renderable.indexCount = meshIndexCounts[def.meshPath];
-			renderable.material = loadedMaterials[def.materalName];
-
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, def.position);
-			model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f)); // z axis
-			model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f)); // y axis
-			model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f)); // y axis
-			model = glm::scale(model, def.scale);
-			renderable.modelMatrix = model;
-
-			renderableObjects.push_back(renderable);
+			renderableObjects.push_back(m_AssetManager->createRenderableObject(def));
 		}
 	}
 

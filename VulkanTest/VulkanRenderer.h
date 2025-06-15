@@ -27,7 +27,6 @@ public:
         VulkanDevice& device,
         VulkanSwapChain& swapChain,
         VulkanRenderPass& renderPass,
-        //VulkanPipelineLayout& pipelineLayout,
         VulkanFramebuffers& framebuffers,
         VulkanCommandBuffers& commandBuffers,
         VulkanSyncObjects& syncObjects,
@@ -51,15 +50,8 @@ public:
     // recreateSwapChainCallback: A function to call if the swapchain needs recreation from drawFrame.
     void drawFrame(
         RenderPacket& packet,
-        //VkPipeline pipelineToUse,
         bool& framebufferResized,
         std::function<void()> recreateSwapChainCallback
-        //const std::vector<RenderableObject>& renderables,
-        //VkDeviceSize dynamicUboAlignment,
-        //VkPipeline skyboxGraphicsPipeline,
-        //VkBuffer skyboxVertexBuffer,
-        //std::vector<VkDescriptorSet> skyboxDescriptorSets,
-        //VkPipelineLayout skyboxPipelineLayout
     );
 
 
@@ -84,7 +76,6 @@ private:
     VulkanDevice& devices; // Renamed to avoid conflict with member name in HelloTriangleApplication
     VulkanSwapChain& swapChainObj;
     VulkanRenderPass& vkRenderPass; // Using a different name to avoid confusion if original was also named renderPass
-    //VulkanPipelineLayout& vkPipelineLayout;
     VulkanFramebuffers& swapChainFramebuffersObj;
     VulkanCommandBuffers& vkCommandBuffers;
     VulkanSyncObjects& syncObjectsRef;
