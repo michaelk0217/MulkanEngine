@@ -6,21 +6,17 @@ VulkanRenderer::VulkanRenderer(
     VulkanDevice& device,
     VulkanSwapChain& swapChain,
     VulkanRenderPass& renderPass,
-    VulkanPipelineLayout& pipelineLayout,
-    //VulkanGraphicsPipeline& graphicsPipeline,
+    //VulkanPipelineLayout& pipelineLayout,
     VulkanFramebuffers& framebuffers,
     VulkanCommandBuffers& commandBuffers,
-    VulkanUniformBuffers& uniformBuffers,
     VulkanSyncObjects& syncObjects,
     int maxFramesInFlight
 ) : devices(device),
 swapChainObj(swapChain),
 vkRenderPass(renderPass),
-vkPipelineLayout(pipelineLayout),
-//vkGraphicsPipeline(graphicsPipeline),
+//vkPipelineLayout(pipelineLayout),
 swapChainFramebuffersObj(framebuffers),
 vkCommandBuffers(commandBuffers),
-uniformBuffersObjRef(uniformBuffers),
 syncObjectsRef(syncObjects),
 MAX_FRAMES_IN_FLIGHT_RENDERER(maxFramesInFlight),
 currentFrame(0)
@@ -32,16 +28,9 @@ VulkanRenderer::~VulkanRenderer()
 }
 
 void VulkanRenderer::drawFrame(
-    VkPipeline pipelineToUse,
-    std::function<FrameUniformBufferObject()> uboDataProvider,
+    RenderPacket& packet,
     bool& framebufferResized,
-    std::function<void()> recreateSwapChainCallback,
-    const std::vector<RenderableObject>& renderables,
-    VkDeviceSize dynamicUboAlignment,
-    VkPipeline skyboxGraphicsPipeline,
-    VkBuffer skyboxVertexBuffer,
-    std::vector<VkDescriptorSet> skyboxDescriptorSets,
-    VkPipelineLayout skyboxPipelineLayout
+    std::function<void()> recreateSwapChainCallback
 )
 {
     // 1. Wait for the fence of the current frame to ensure the GPU is done with it.
@@ -60,10 +49,6 @@ void VulkanRenderer::drawFrame(
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    // Update the uniform buffer for this frame
-    FrameUniformBufferObject ubo = uboDataProvider();
-    uniformBuffersObjRef.update(currentFrame, ubo);
-
     // 3. We are about to use this frame's command buffer, so reset its fence.
     vkResetFences(devices.getLogicalDevice(), 1, &currentFrameFence);
 
@@ -74,16 +59,16 @@ void VulkanRenderer::drawFrame(
         currentCmdBuffer,
         currentFrame, // Pass currentFrame if descriptorSets are indexed by it directly
         vkRenderPass.getVkRenderPass(),
-        vkPipelineLayout.getVkPipelineLayout(),
-        pipelineToUse,
+        packet.pbrLayout,
+        packet.pbrPipeline,
         swapChainFramebuffersObj.getFramebuffer(imageIndex),
         swapChainObj.getExtent(),
-        renderables,
-        dynamicUboAlignment,
-        skyboxGraphicsPipeline,
-        skyboxVertexBuffer,
-        skyboxDescriptorSets,
-        skyboxPipelineLayout
+        packet.pbrRenderables,
+        packet.dynamicUboAlignment,
+        packet.skyboxData->pipeline,
+        packet.skyboxData->vertexBuffer,
+        packet.skyboxData->descriptorSets,
+        packet.skyboxData->pipelineLayout
     );
 
     // 5. Submit the command buffer to the graphics queue.
@@ -186,7 +171,7 @@ void VulkanRenderer::recordCommandBuffer(
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-    // --- draw skybox ---
+    // --- draw skybox --- if exists in packet
     if (skyboxGraphicsPipeline != VK_NULL_HANDLE && !skyboxDescriptorSets.empty() && skyboxVertexBuffer != VK_NULL_HANDLE && skyboxPipelineLayout != VK_NULL_HANDLE)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxGraphicsPipeline);

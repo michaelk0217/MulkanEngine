@@ -23,7 +23,7 @@
 - **Physically Based Rendering (PBR)**: Higher visual fidelity, compatible only with ORM (ARM) maps.
 - **Tessellation for Displacement maps**
 - **Wireframe mode**: Runs a separate graphics pipeline for mesh / tessellation debugging. Toggle on / off using 'M' key.
-- **HDR Skybox**: Runs offscreen render to convert 2D HDR image into cubemap suitable for skybox.
+- **HDR Skybox**: Runs on-the-fly offscreen render to convert 2D HDR image into cubemap suitable for skybox.
 
 
 ## Showcase / Visuals
@@ -83,7 +83,8 @@
 
 
 ### Future Features:
-- Physically Based Rendering (PBR)
+- Image Based Lighting (IBL)
+- Global Illumination (SAAO, Voxel Based GI)
 - Shadow Mapping (Cascaded Shadow Maps)
 - Post-Processing Effects (Bloom, Tone Mapping, etc)
 - Custom Material System

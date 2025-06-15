@@ -27,16 +27,10 @@ public:
         VulkanDevice& device,
         VulkanSwapChain& swapChain,
         VulkanRenderPass& renderPass,
-        VulkanPipelineLayout& pipelineLayout,
-        //VulkanGraphicsPipeline& graphicsPipeline,
+        //VulkanPipelineLayout& pipelineLayout,
         VulkanFramebuffers& framebuffers,
         VulkanCommandBuffers& commandBuffers,
-        /*VulkanDescriptorSets& descriptorSets,
-        VulkanVertexBuffer& vertexBuffer,
-        VulkanIndexBuffer& indexBuffer,*/
-        VulkanUniformBuffers& uniformBuffers,
         VulkanSyncObjects& syncObjects,
-        //const std::vector<uint32_t>& indices, // For drawing
         int maxFramesInFlight
     );
 
@@ -56,17 +50,18 @@ public:
     // framebufferResized: A reference to the flag in the main application.
     // recreateSwapChainCallback: A function to call if the swapchain needs recreation from drawFrame.
     void drawFrame(
-        VkPipeline pipelineToUse,
-        std::function<FrameUniformBufferObject()> uboDataProvider,
+        RenderPacket& packet,
+        //VkPipeline pipelineToUse,
         bool& framebufferResized,
-        std::function<void()> recreateSwapChainCallback,
-        const std::vector<RenderableObject>& renderables,
-        VkDeviceSize dynamicUboAlignment,
-        VkPipeline skyboxGraphicsPipeline,
-        VkBuffer skyboxVertexBuffer,
-        std::vector<VkDescriptorSet> skyboxDescriptorSets,
-        VkPipelineLayout skyboxPipelineLayout
+        std::function<void()> recreateSwapChainCallback
+        //const std::vector<RenderableObject>& renderables,
+        //VkDeviceSize dynamicUboAlignment,
+        //VkPipeline skyboxGraphicsPipeline,
+        //VkBuffer skyboxVertexBuffer,
+        //std::vector<VkDescriptorSet> skyboxDescriptorSets,
+        //VkPipelineLayout skyboxPipelineLayout
     );
+
 
     static void recordCommandBuffer(
         VkCommandBuffer commandBuffer,
@@ -89,17 +84,10 @@ private:
     VulkanDevice& devices; // Renamed to avoid conflict with member name in HelloTriangleApplication
     VulkanSwapChain& swapChainObj;
     VulkanRenderPass& vkRenderPass; // Using a different name to avoid confusion if original was also named renderPass
-    VulkanPipelineLayout& vkPipelineLayout;
-    //VulkanGraphicsPipeline& vkGraphicsPipeline;
+    //VulkanPipelineLayout& vkPipelineLayout;
     VulkanFramebuffers& swapChainFramebuffersObj;
     VulkanCommandBuffers& vkCommandBuffers;
-    //VulkanDescriptorSets& vkDescriptorSets;
-    //VulkanVertexBuffer& vertexBufferObjRef;
-    //VulkanIndexBuffer& indexBufferObjRef;
-    VulkanUniformBuffers& uniformBuffersObjRef;
     VulkanSyncObjects& syncObjectsRef;
-
-    //const std::vector<uint32_t>& appIndices; // Store reference to indices for draw count
     const int MAX_FRAMES_IN_FLIGHT_RENDERER;
 
     uint32_t currentFrame = 0;

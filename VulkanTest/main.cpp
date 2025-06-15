@@ -119,7 +119,7 @@ private:
 	std::unique_ptr<VulkanDescriptorSetLayout> m_skyboxDescriptorSetLayout;
 	std::unique_ptr<VulkanDescriptorSets> m_skyboxDescriptorSets;
 	std::unique_ptr<VulkanPipelineLayout> m_skyboxPipelineLayout;
-	std::unique_ptr<VulkanVertexBuffer> m_cubeVertexBuffer;
+	std::unique_ptr<VulkanVertexBuffer> m_skyboxCubeVertexBuffer;
 
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineWireframe;
@@ -359,10 +359,9 @@ private:
 			*devices,            // Pass by reference
 			*swapChainObj,
 			*renderPass,
-			*m_pbrPipelineLayout,
+			//*m_pbrPipelineLayout,
 			*swapChainFramebuffers,
 			*commandBuffers,
-			*frameUboManager,
 			*syncObjects,
 			VulkanGlobals::MAX_FRAMES_IN_FLIGHT
 		);
@@ -478,9 +477,9 @@ private:
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
 			tessellationUboManager->update(uboFrameIndex, tessUboData);
+			frameUboManager->update(uboFrameIndex, frameUboUpdate());
 
 			sceneLights.viewPosition = glm::vec4(camera->getCameraPosition(), 1.0f);
-			//lightingUboManager->updateLights(uboFrameIndex, sceneLights);
 			lightingUboManager->update(uboFrameIndex, sceneLights);
 
 			updateObjectUniforms(uboFrameIndex);
@@ -489,17 +488,23 @@ private:
 				? m_GraphicsPipelineWireframe->getVkPipeline()
 				: m_GraphicsPipelineFill->getVkPipeline();
 
+			SkyboxData skyboxDataPacket{};
+			skyboxDataPacket.pipeline = m_GraphicsPipelineSkybox->getVkPipeline();
+			skyboxDataPacket.pipelineLayout = m_skyboxPipelineLayout->getVkPipelineLayout();
+			skyboxDataPacket.vertexBuffer = m_skyboxCubeVertexBuffer->getVkBuffer();
+			skyboxDataPacket.descriptorSets = m_skyboxDescriptorSets->getVkDescriptorSets();
+
+			RenderPacket renderPacket{};
+			renderPacket.pbrPipeline = pipelineToUse;
+			renderPacket.pbrLayout = m_pbrPipelineLayout->getVkPipelineLayout();
+			renderPacket.pbrRenderables = renderableObjects;
+			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
+			renderPacket.skyboxData = skyboxDataPacket;
+
 			renderer->drawFrame(
-				pipelineToUse,
-				[this]() { return this->frameUboUpdate(); },
+				renderPacket,
 				framebufferResized,
-				[this]() { return this->recreateSwapChain(); },
-				renderableObjects,
-				objectDataDUBManager->getDynamicAlignment(),
-				m_GraphicsPipelineSkybox->getVkPipeline(),
-				m_cubeVertexBuffer->getVkBuffer(),
-				m_skyboxDescriptorSets->getVkDescriptorSets(),
-				m_skyboxPipelineLayout->getVkPipelineLayout()
+				[this]() { return this->recreateSwapChain(); }
 			);
 		}
 
@@ -558,8 +563,8 @@ private:
 		}
 		loadedMaterials.clear();
 
-		if (m_cubeVertexBuffer) m_cubeVertexBuffer->destroy();
-		m_cubeVertexBuffer.reset();
+		if (m_skyboxCubeVertexBuffer) m_skyboxCubeVertexBuffer->destroy();
+		m_skyboxCubeVertexBuffer.reset();
 
 		if (frameUboManager) frameUboManager->destroy();
 		frameUboManager.reset();
@@ -938,7 +943,7 @@ private:
 			glm::mat4 mvp = captureProjection * captureViews[i];
 			vkCmdPushConstants(cmd, conversionPipelineLayout->getVkPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
 
-			VkBuffer vertexBuffers[] = { m_cubeVertexBuffer->getVkBuffer() };
+			VkBuffer vertexBuffers[] = { m_skyboxCubeVertexBuffer->getVkBuffer() };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 			// draw 36 vertices of cube
@@ -1037,7 +1042,7 @@ private:
 			{-1.0f,  1.0f,  1.0f}
 		};
 
-		m_cubeVertexBuffer = std::make_unique<VulkanVertexBuffer>();
+		m_skyboxCubeVertexBuffer = std::make_unique<VulkanVertexBuffer>();
 		// Note: Your VulkanVertexBuffer::create function likely takes a vector of `Vertex` structs.
 		// You may need to adapt this call or create an overload that takes `glm::vec3`.
 		// For simplicity, I'll assume you can adapt it.
@@ -1049,7 +1054,7 @@ private:
 			verticesForBuffer.push_back({ pos, {}, {}, {} }); // Only position is needed
 		}
 
-		m_cubeVertexBuffer->create(
+		m_skyboxCubeVertexBuffer->create(
 			devices->getLogicalDevice(),
 			devices->getPhysicalDevice(),
 			devices->getGraphicsQueue(),

@@ -117,55 +117,6 @@ void VulkanRenderPass::offscreen_rendering_create(VkDevice device, VkPhysicalDev
 	{
 		throw std::runtime_error("failed to create offscreen render pass!");
 	}
-
-	//this->device = device;
-
-	//VkAttachmentDescription colorAttachment{};
-	//colorAttachment.format = VK_FORMAT_R32G32B32A32_SFLOAT; // same format as cubmap
-	//colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	//colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	//colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	//colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	//colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	//colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	//colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	//VkAttachmentReference colorAttachmentRef{};
-	//colorAttachmentRef.attachment = 0;
-	//colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	//VkSubpassDescription subpass{};
-	//subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	//subpass.colorAttachmentCount = 1;
-	//subpass.pColorAttachments = &colorAttachmentRef;
-
-	//VkSubpassDependency dependency{};
-	//dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // From outside the render pass
-	//dependency.dstSubpass = 0;                   // To our only subpass
-
-	//// The destination stage (writing to the cubemap face) must wait...
-	//dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	//dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-	//// ...for the source stage (reading the HDR texture) to be finished.
-	//dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	//dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	//std::array<VkAttachmentDescription, 1> attachments = { colorAttachment };
-
-	//VkRenderPassCreateInfo renderPassInfo{};
-	//renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-	//renderPassInfo.pAttachments = attachments.data();
-	//renderPassInfo.subpassCount = 1;
-	//renderPassInfo.pSubpasses = &subpass;
-	//renderPassInfo.dependencyCount = 1;
-	//renderPassInfo.pDependencies = &dependency;
-
-	//if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
-	//{
-	//	throw std::runtime_error("failed to create offscreen render pass!");
-	//}
 }
 
 void VulkanRenderPass::destroy()

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
@@ -50,4 +51,21 @@ struct RenderableObject
     glm::mat4 modelMatrix = glm::mat4(1.0f);
 
     RenderableObject() = default;
+};
+
+struct SkyboxData {
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSet> descriptorSets;
+};
+
+struct RenderPacket {
+    std::vector<RenderableObject> pbrRenderables;
+    VkDeviceSize dynamicUboAlignment;
+    VkPipeline pbrPipeline;
+    VkPipelineLayout pbrLayout;
+
+    std::optional<SkyboxData> skyboxData;
+    // shadow pass for future
 };
