@@ -60,7 +60,7 @@
 - **Memory & Resources:** `VulkanVertexBuffer`, `VulkanIndexBuffer`, `VulkanUniformBuffers`, `VulaknTexture`, `VulkanDepthResources`
 - **GPU Commands:** `VulkanCommandPool`, `VulkanCommandBuffers`
 - **Synchronization:** `VulkanSyncObjects`
-
+- [Flowchart](https://www.mermaidchart.com/app/projects/900d5192-a6e3-4c50-9c65-1af10034bb97/diagrams/9bec9c97-8039-4d93-8f35-2942a6d0b8f0/version/v0.1/edit)
 
 ## 🛣️ Roadmap
 

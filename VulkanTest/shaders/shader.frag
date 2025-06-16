@@ -1,4 +1,4 @@
-//shader.frag
+//shader.frag (frag.spv)
 
 #version 450
 

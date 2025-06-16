@@ -638,12 +638,10 @@ private:
 	{
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			/*{"viking_room_1", MODEL_PATH, TEXTURE_PATH, glm::vec3(0.0f, 0.0f, 0.0f)},
-			{"viking_room_2", MODEL_PATH, TEXTURE_PATH, glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 45.0f)}*/
 			{
-				"Metal_PBR_Preview", 
-				"", 
-				"Metal055A_4K", 
+				"Metal_PBR_Preview",
+				"",
+				"Metal055A_4K",
 				"textures/Metal055A_4K/Metal055A_4K-PNG_Color.png", // Albedo
 				"textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png", //Normal
 				"textures/Metal055A_4K/Metal055A_4K-MRA.png", // ORM
@@ -659,7 +657,18 @@ private:
 				"textures/Rock061_4K/Rock061_4K-PNG_ORM.png",
 				"textures/Rock061_4K/Rock061_4K-PNG_Displacement.png",
 				glm::vec3(10.0, 0.0, 0.0)
+			},
+			{
+				"Onyx_PBR_Preview",
+				"",
+				"Onyx011_4K",
+				"textures/Onyx011_4K/Onyx011_4K-PNG_Color.png",
+				"textures/Onyx011_4K/Onyx011_4K-PNG_NormalDX.png",
+				"textures/Onyx011_4K/Onyx011_4K-PNG_ORM.png",
+				"textures/Onyx011_4K/Onyx011_4K-PNG_Displacement.png",
+				glm::vec3(-10.0, 0.0, 0.0)
 			}
+
 		};
 
 		// The entire loading process is now a simple loop.
