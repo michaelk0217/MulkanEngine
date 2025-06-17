@@ -21,7 +21,7 @@ struct SceneObjectDefinition
 {
     std::string name;
     std::string meshPath;
-    std::string materalName;
+    std::string materialName;
     std::string albedoPath;
     std::string normalPath;
     std::string ormPath;
@@ -60,6 +60,7 @@ struct SkyboxData {
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> descriptorSets;
+    bool renderSkyBox = true;
 };
 
 struct RenderPacket {

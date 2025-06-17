@@ -365,7 +365,7 @@ private:
 			45.0f,                             // fieldOfView
 			swapChainObj->getExtent().width / (float)swapChainObj->getExtent().height, // aspectRatioF
 			0.1f,                              // nearF
-			50.0f                              // farF
+			100.0f                              // farF
 		);
 	}
 
@@ -378,7 +378,7 @@ private:
 		bool up_KeyPressed = false;
 		bool down_KeyPressed = false;
 		size_t tessLevelIndex = 0;
-		std::array<float, 4> tessLevelValue{4.0f, 8.0f, 16.0f, 64.0f};
+		std::array<float, 5> tessLevelValue{1.0f, 4.0f, 8.0f, 16.0f, 64.0f};
 
 		while (window && !window->shouldClose())
 		{
@@ -464,6 +464,7 @@ private:
 
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
+			//tessUboData.displacementScale = 0.0f;
 			tessellationUboManager->update(uboFrameIndex, tessUboData);
 			frameUboManager->update(uboFrameIndex, frameUboUpdate());
 
@@ -481,6 +482,7 @@ private:
 			skyboxDataPacket.pipelineLayout = m_skyboxPipelineLayout->getVkPipelineLayout();
 			skyboxDataPacket.vertexBuffer = m_skyboxCubeVertexBuffer->getVkBuffer();
 			skyboxDataPacket.descriptorSets = m_skyboxDescriptorSets->getVkDescriptorSets();
+			skyboxDataPacket.renderSkyBox = !m_WireframeMode;
 
 			RenderPacket renderPacket{};
 			renderPacket.pbrPipeline = pipelineToUse;
@@ -639,18 +641,18 @@ private:
 		SceneObjectDefinition MetalBall{};
 		MetalBall.name = "Metal_PBR_Preview";
 		MetalBall.meshPath = "";
-		MetalBall.materalName = "Metal055A_4K";
+		MetalBall.materialName = "Metal055A_4K";
 		MetalBall.albedoPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png";
 		MetalBall.normalPath = "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png";
 		MetalBall.ormPath = "textures/Metal055A_4K/Metal055A_4K-MRA.png";
 		MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
-		MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
+		MetalBall.position = glm::vec3(0.0, 0.0, 5.0);
 		MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
 
 		SceneObjectDefinition RockBall{};
 		RockBall.name = "Rock_PBR_Preview";
 		RockBall.meshPath = "";
-		RockBall.materalName = "Rock061_4K";
+		RockBall.materialName = "Rock061_4K";
 		RockBall.albedoPath = "textures/Rock061_4K/Rock061_4K-PNG_Color.png";
 		RockBall.normalPath = "textures/Rock061_4K/Rock061_4K-PNG_NormalDX.png";
 		RockBall.ormPath = "textures/Rock061_4K/Rock061_4K-PNG_ORM.png";
@@ -661,7 +663,7 @@ private:
 		SceneObjectDefinition OnyxBall;
 		OnyxBall.name = "OnyxBall";
 		OnyxBall.meshPath = "";
-		OnyxBall.materalName = "Onyx011_4K";
+		OnyxBall.materialName = "Onyx011_4K";
 		OnyxBall.albedoPath = "textures/Onyx011_4K/Onyx011_4K-PNG_Color.png";
 		OnyxBall.normalPath = "textures/Onyx011_4K/Onyx011_4K-PNG_NormalDX.png";
 		OnyxBall.ormPath = "textures/Onyx011_4K/Onyx011_4K-PNG_ORM.png";
@@ -672,7 +674,7 @@ private:
 		SceneObjectDefinition TileFloor;
 		TileFloor.name = "TileFloor";
 		TileFloor.meshPath = "";
-		TileFloor.materalName = "Tiles107_2K";
+		TileFloor.materialName = "Tiles107_2K";
 		TileFloor.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
 		TileFloor.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
 		TileFloor.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
@@ -680,12 +682,31 @@ private:
 		TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
 		TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
 
+		SceneObjectDefinition MetalCube;
+		MetalCube.name = "MetalCube";
+		MetalCube.meshPath = "";
+		MetalCube.materialName = "Metal055A_4K";
+		MetalCube.position = glm::vec3(0.0, 3.0, 0.0);
+		MetalCube.defaultModel = PrimitiveModelType::CREATE_CUBE;
+
+		SceneObjectDefinition TileBall;
+		TileBall.name = "TileBall";
+		TileBall.meshPath = "";
+		TileBall.materialName = "Tiles107_2K";
+		TileBall.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
+		TileBall.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
+		TileBall.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
+		TileBall.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
+		TileBall.position = glm::vec3(0.0, 3.5, 0.0);
+		TileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
 			MetalBall,
 			RockBall,
 			OnyxBall,
-			TileFloor
+			TileFloor,
+			TileBall
 		};
 
 		// The entire loading process is now a simple loop.

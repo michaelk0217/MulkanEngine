@@ -63,10 +63,11 @@ void VulkanRenderer::drawFrame(
         swapChainObj.getExtent(),
         packet.pbrRenderables,
         packet.dynamicUboAlignment,
-        packet.skyboxData->pipeline,
+        packet.skyboxData
+        /*packet.skyboxData->pipeline,
         packet.skyboxData->vertexBuffer,
         packet.skyboxData->descriptorSets,
-        packet.skyboxData->pipelineLayout
+        packet.skyboxData->pipelineLayout*/
     );
 
     // 5. Submit the command buffer to the graphics queue.
@@ -124,10 +125,11 @@ void VulkanRenderer::recordCommandBuffer(
     VkExtent2D swapChainExtent,
     const std::vector<RenderableObject>& renderables,
     VkDeviceSize dynamicUboAlignment,
-    VkPipeline skyboxGraphicsPipeline,
+    std::optional<SkyboxData> skyboxPacket
+    /*VkPipeline skyboxGraphicsPipeline,
     VkBuffer skyboxVertexBuffer,
     std::vector<VkDescriptorSet> skyboxDescriptorSets,
-    VkPipelineLayout skyboxPipelineLayout)
+    VkPipelineLayout skyboxPipelineLayout*/)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -170,14 +172,14 @@ void VulkanRenderer::recordCommandBuffer(
 
 
     // --- draw skybox --- if exists in packet
-    if (skyboxGraphicsPipeline != VK_NULL_HANDLE && !skyboxDescriptorSets.empty() && skyboxVertexBuffer != VK_NULL_HANDLE && skyboxPipelineLayout != VK_NULL_HANDLE)
+    if (skyboxPacket.has_value() && skyboxPacket->renderSkyBox)
     {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxGraphicsPipeline);
-        VkBuffer vertexBuffers[] = { skyboxVertexBuffer };
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPacket->pipeline);
+        VkBuffer vertexBuffers[] = { skyboxPacket->vertexBuffer };
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        VkDescriptorSet skyboxDescSet = skyboxDescriptorSets[currentFrameIndex];
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout, 0, 1, &skyboxDescSet, 0, nullptr);
+        VkDescriptorSet skyboxDescSet = skyboxPacket->descriptorSets[currentFrameIndex];
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPacket->pipelineLayout, 0, 1, &skyboxDescSet, 0, nullptr);
 
         vkCmdDraw(commandBuffer, 36, 1, 0, 0);
     }

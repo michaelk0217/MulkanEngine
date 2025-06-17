@@ -25,7 +25,7 @@ struct ObjectUniformBufferObject
 };
 
 struct TessellationUBO {
-	float tessellationLevel = 16.0f; // Default inner/outer level
+	float tessellationLevel = 15.0f; // Default inner/outer level
 	float displacementScale = 0.1f; // Default displacement depth
 };
 

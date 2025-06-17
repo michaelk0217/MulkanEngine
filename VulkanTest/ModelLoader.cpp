@@ -97,13 +97,6 @@ void ModelLoader::createSphere(float radius, uint32_t latSegments, uint32_t lonS
 				radius * std::sin(theta) * std::sin(phi)	// z (depth)
 			};
 
-			// Z-up
-			/*vertex.pos = {
-				radius * std::sin(theta) * std::cos(phi),
-				radius * std::sin(theta) * std::sin(phi),
-				radius * std::cos(theta)
-			};*/
-
 			vertex.inNormal = glm::normalize(vertex.pos);
 			
 			vertex.texCoord = {
@@ -228,6 +221,151 @@ void ModelLoader::createPlane(float width, float height, uint32_t widthSegments,
 		}
 	}
 }
+//void ModelLoader::createCube(float halfSize, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+//{
+//	vertices = {
+//		// Position             // Color        // Tex Coords   // Normal
+//		// Back Face (-Z)
+//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  0.0f, -1.0f} },
+//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  0.0f, -1.0f} },
+//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  0.0f, -1.0f} },
+//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  0.0f, -1.0f} },
+//
+//		// Front Face (+Z)
+//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  0.0f,  1.0f} },
+//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  0.0f,  1.0f} },
+//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  0.0f,  1.0f} },
+//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  0.0f,  1.0f} },
+//
+//		// Left Face (-X)
+//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, {-1.0f,  0.0f,  0.0f} },
+//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {-1.0f,  0.0f,  0.0f} },
+//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, {-1.0f,  0.0f,  0.0f} },
+//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, {-1.0f,  0.0f,  0.0f} },
+//
+//		// Right Face (+X)
+//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 1.0f,  0.0f,  0.0f} },
+//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 1.0f,  0.0f,  0.0f} },
+//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 1.0f,  0.0f,  0.0f} },
+//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 1.0f,  0.0f,  0.0f} },
+//
+//		// Bottom Face (-Y)
+//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f, -1.0f,  0.0f} },
+//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f, -1.0f,  0.0f} },
+//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f, -1.0f,  0.0f} },
+//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f, -1.0f,  0.0f} },
+//
+//		// Top Face (+Y)
+//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  1.0f,  0.0f} },
+//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  1.0f,  0.0f} },
+//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  1.0f,  0.0f} },
+//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  1.0f,  0.0f} }
+//	};
+//
+//	indices.resize(36);
+//	for (uint32_t i = 0; i < 6; ++i) {
+//		indices[i * 6 + 0] = i * 4 + 0;
+//		indices[i * 6 + 1] = i * 4 + 1;
+//		indices[i * 6 + 2] = i * 4 + 2;
+//		indices[i * 6 + 3] = i * 4 + 0;
+//		indices[i * 6 + 4] = i * 4 + 2;
+//		indices[i * 6 + 5] = i * 4 + 3;
+//	}
+//}
+/**
+ * @brief Creates a cube mesh centered at the origin.
+ * @param halfSize The half-length of one side of the cube. The cube will span from -halfSize to +halfSize on each axis.
+ * @param segments The number of segments per face. A value of 1 creates a simple cube with 2 triangles per face.
+ * @param vertices A reference to the vector that will be populated with the generated vertices.
+ * @param indices A reference to the vector that will be populated with the generated indices.
+ */
+void ModelLoader::createCube(float halfSize, uint32_t segments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+{
+	vertices.clear();
+	indices.clear();
+
+	segments = std::max(1u, segments);
+
+	// Define the 6 faces of the cube.
+	// For each face, we define its normal and the two axes (u, v) that form its plane.
+	// This allows us to correctly generate vertex positions and texture coordinates.
+	// The u-axis corresponds to the texture's X direction, and v-axis to Y.
+	glm::vec3 normals[] = {
+		{ 0,  0,  1}, // Front
+		{ 0,  0, -1}, // Back
+		{ 1,  0,  0}, // Right
+		{-1,  0,  0}, // Left
+		{ 0,  1,  0}, // Top
+		{ 0, -1,  0}  // Bottom
+	};
+
+	glm::vec3 u_axes[] = {
+		{ 1,  0,  0}, // Front
+		{-1,  0,  0}, // Back
+		{ 0,  0, -1}, // Right
+		{ 0,  0,  1}, // Left
+		{ 1,  0,  0}, // Top
+		{ 1,  0,  0}  // Bottom
+	};
+
+	glm::vec3 v_axes[] = {
+		{ 0,  1,  0}, // Front
+		{ 0,  1,  0}, // Back
+		{ 0,  1,  0}, // Right
+		{ 0,  1,  0}, // Left
+		{ 0,  0, -1}, // Top
+		{ 0,  0,  1}  // Bottom
+	};
+
+	for (int face = 0; face < 6; ++face) {
+		uint32_t baseVertexIndex = static_cast<uint32_t>(vertices.size());
+		glm::vec3 normal = normals[face];
+		glm::vec3 u_axis = u_axes[face];
+		glm::vec3 v_axis = v_axes[face];
+
+		// Generate vertices for the current face
+		for (uint32_t j = 0; j <= segments; ++j) {
+			for (uint32_t i = 0; i <= segments; ++i) {
+				Vertex vertex{};
+
+				float u = (float)i / segments; // Varies from 0.0 to 1.0
+				float v = (float)j / segments; // Varies from 0.0 to 1.0
+
+				// Position is calculated from the center of the face, offset by the u and v axes
+				vertex.pos = halfSize * normal + (2.0f * u - 1.0f) * halfSize * u_axis + (2.0f * v - 1.0f) * halfSize * v_axis;
+				vertex.inNormal = normal;
+				vertex.texCoord = { u, v };
+				vertex.color = { 1.0f, 1.0f, 1.0f };
+
+				vertices.push_back(vertex);
+			}
+		}
+
+		// Generate indices for the current face
+		for (uint32_t j = 0; j < segments; ++j) {
+			for (uint32_t i = 0; i < segments; ++i) {
+				uint32_t p00 = baseVertexIndex + j * (segments + 1) + i;
+				uint32_t p10 = p00 + 1;
+				uint32_t p01 = p00 + (segments + 1);
+				uint32_t p11 = p01 + 1;
+
+				// Create two triangles for the quad (Counter-Clockwise winding)
+				// First triangle
+				indices.push_back(p00);
+				indices.push_back(p10);
+				indices.push_back(p01);
+
+				// Second triangle
+				indices.push_back(p01);
+				indices.push_back(p10);
+				indices.push_back(p11);
+			}
+		}
+	}
+}
+
+
+
 
 void ModelLoader::createPrimitive(float radius, PrimitiveModelType modelType, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
 {

@@ -89,7 +89,12 @@ std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def
         }
         else if (def.defaultModel == PrimitiveModelType::CREATE_PLANE)
         {
-            ModelLoader::createPlane(50, 50, 1, 1, vertices, indices);
+            ModelLoader::createPlane(50, 50, 32, 32, vertices, indices);
+        }
+        else if (def.defaultModel == PrimitiveModelType::CREATE_CUBE)
+        {
+            ModelLoader::createCube(2.5, 1, vertices, indices);
+            //ModelLoader::createCube(2.5, vertices, indices);
         }
         else
         {
@@ -118,15 +123,15 @@ std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def
 
 std::shared_ptr<Material> AssetManager::getMaterial(const SceneObjectDefinition& def)
 {
-    if (m_Materials.count(def.materalName))
+    if (m_Materials.count(def.materialName))
     {
-        return m_Materials.at(def.materalName);
+        return m_Materials.at(def.materialName);
     }
 
-    std::cout << "Creating new material: " << def.materalName << std::endl;
+    std::cout << "Creating new material: " << def.materialName << std::endl;
 
     auto newMaterial = std::make_shared<Material>();
-    newMaterial->name = def.materalName;
+    newMaterial->name = def.materialName;
 
     newMaterial->albedoMap = loadTexture(def.albedoPath);
     newMaterial->normalMap = loadTexture(def.normalPath, "textures/default_normal.png");
@@ -134,7 +139,7 @@ std::shared_ptr<Material> AssetManager::getMaterial(const SceneObjectDefinition&
     newMaterial->ormMap = loadTexture(def.ormPath, "textures/default_orm.png");
     newMaterial->displacementMap = loadTexture(def.displacementPath, "textures/default_orm.png"); // Use a neutral default for displacement
 
-    m_Materials[def.materalName] = newMaterial;
+    m_Materials[def.materialName] = newMaterial;
     return newMaterial;
 }
 

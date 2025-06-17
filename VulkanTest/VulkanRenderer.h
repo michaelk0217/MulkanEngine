@@ -65,10 +65,11 @@ public:
         VkExtent2D swapChainExtent,
         const std::vector<RenderableObject>& renderables,
         VkDeviceSize dynamicUboAlignment,
-        VkPipeline skyboxGraphicsPipeline = VK_NULL_HANDLE,
+        std::optional<SkyboxData> skyboxPacket
+        /*VkPipeline skyboxGraphicsPipeline = VK_NULL_HANDLE,
         VkBuffer skyboxVertexBuffer = VK_NULL_HANDLE,
         std::vector<VkDescriptorSet> skyboxDescriptorSets = {},
-        VkPipelineLayout skyboxPipelineLayout = VK_NULL_HANDLE
+        VkPipelineLayout skyboxPipelineLayout = VK_NULL_HANDLE*/
     );
 
 private:

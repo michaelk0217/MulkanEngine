@@ -76,7 +76,8 @@ enum class PrimitiveModelType
 {
 	CREATE_NULL,
 	CREATE_SPHERE,
-	CREATE_PLANE
+	CREATE_PLANE,
+	CREATE_CUBE
 };
 
 class ModelLoader
@@ -85,6 +86,9 @@ public:
 	static void loadModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createSphere(float radius, uint32_t latSegments, uint32_t lonSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createPlane(float width, float height, uint32_t widthSegments, uint32_t heightSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	static void createCube(float halfSize, uint32_t segments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	//static void createCube(float halfSize, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	
 	static void createPrimitive(float radius, PrimitiveModelType modelType, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 };
 
