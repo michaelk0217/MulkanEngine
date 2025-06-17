@@ -144,3 +144,99 @@ void ModelLoader::createSphere(float radius, uint32_t latSegments, uint32_t lonS
 		}
 	}
 }
+
+/**
+ * @brief Creates a plane mesh centered in the XZ plane.
+ *
+ * This function generates vertices and indices for a plane with the specified dimensions and segmentation.
+ * The plane is created on the XZ axis, making it suitable for floors or flat surfaces in a Y-Up coordinate system.
+ *
+ * @param width The width of the plane along the X-axis.
+ * @param height The height of the plane along the Z-axis.
+ * @param widthSegments The number of segments along the plane's width.
+ * @param heightSegments The number of segments along the plane's height.
+ * @param vertices A reference to the vector that will be populated with the generated vertices.
+ * @param indices A reference to the vector that will be populated with the generated indices.
+ */
+void ModelLoader::createPlane(float width, float height, uint32_t widthSegments, uint32_t heightSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+{
+	// Clear any existing data in the vectors
+	vertices.clear();
+	indices.clear();
+
+	// Ensure there is at least one segment
+	widthSegments = std::max(1u, widthSegments);
+	heightSegments = std::max(1u, heightSegments);
+
+	// Calculate starting positions to center the plane at the origin
+	const float halfWidth = width / 2.0f;
+	const float halfHeight = height / 2.0f;
+
+	// Calculate the size of each segment
+	const float segmentWidth = width / static_cast<float>(widthSegments);
+	const float segmentHeight = height / static_cast<float>(heightSegments);
+
+	// Generate the grid of vertices
+	for (uint32_t j = 0; j <= heightSegments; ++j)
+	{
+		for (uint32_t i = 0; i <= widthSegments; ++i)
+		{
+			Vertex vertex{};
+
+			// Calculate vertex position
+			const float x = (static_cast<float>(i) * segmentWidth) - halfWidth;
+			const float z = (static_cast<float>(j) * segmentHeight) - halfHeight;
+			vertex.pos = { x, 0.0f, z };
+
+			// The normal for every vertex on a flat plane points directly up
+			vertex.inNormal = { 0.0f, 1.0f, 0.0f };
+
+			// Calculate texture coordinates
+			vertex.texCoord = {
+				static_cast<float>(i) / static_cast<float>(widthSegments),
+				static_cast<float>(j) / static_cast<float>(heightSegments)
+			};
+
+			// Assign a default white color
+			vertex.color = { 1.0f, 1.0f, 1.0f };
+
+			vertices.push_back(vertex);
+		}
+	}
+
+	// Generate indices for the plane's triangles
+	for (uint32_t j = 0; j < heightSegments; ++j)
+	{
+		for (uint32_t i = 0; i < widthSegments; ++i)
+		{
+			// Calculate the indices of the four vertices of the current quad
+			const uint32_t topLeft = j * (widthSegments + 1) + i;
+			const uint32_t topRight = topLeft + 1;
+			const uint32_t bottomLeft = (j + 1) * (widthSegments + 1) + i;
+			const uint32_t bottomRight = bottomLeft + 1;
+
+			// Create two triangles for the quad with a clockwise winding order
+			// First triangle
+			indices.push_back(topLeft);
+			indices.push_back(bottomLeft);
+			indices.push_back(topRight);
+
+			// Second triangle
+			indices.push_back(topRight);
+			indices.push_back(bottomLeft);
+			indices.push_back(bottomRight);
+		}
+	}
+}
+
+void ModelLoader::createPrimitive(float radius, PrimitiveModelType modelType, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+{
+	if (modelType == PrimitiveModelType::CREATE_SPHERE)
+	{
+		createSphere(radius, 32, 32, vertices, indices);
+	}
+	else if (modelType == PrimitiveModelType::CREATE_PLANE)
+	{
+		createPlane(radius * 2, radius * 2, 1, 1, vertices, indices);
+	}
+}

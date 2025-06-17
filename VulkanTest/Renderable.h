@@ -14,6 +14,7 @@
 #include "VulkanTexture.h"
 #include "VulkanUniformBuffers.h"
 #include "Material.h"
+#include "ModelLoader.h"
 
 // Defines objects in the scene
 struct SceneObjectDefinition
@@ -21,7 +22,6 @@ struct SceneObjectDefinition
     std::string name;
     std::string meshPath;
     std::string materalName;
-    //std::string texturePath;
     std::string albedoPath;
     std::string normalPath;
     std::string ormPath;
@@ -30,6 +30,8 @@ struct SceneObjectDefinition
     glm::vec3 position = glm::vec3(0.0f);
     glm::vec3 rotationAngles = glm::vec3(0.0f); // in degrees
     glm::vec3 scale = glm::vec3(1.0f);
+
+    PrimitiveModelType defaultModel = PrimitiveModelType::CREATE_NULL;
 };
 
 class VulkanVertexBuffer;

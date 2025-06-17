@@ -636,39 +636,56 @@ private:
 
 	void loadAssetsAndCreateRenderables()
 	{
+		SceneObjectDefinition MetalBall{};
+		MetalBall.name = "Metal_PBR_Preview";
+		MetalBall.meshPath = "";
+		MetalBall.materalName = "Metal055A_4K";
+		MetalBall.albedoPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png";
+		MetalBall.normalPath = "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png";
+		MetalBall.ormPath = "textures/Metal055A_4K/Metal055A_4K-MRA.png";
+		MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
+		MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
+		MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
+		SceneObjectDefinition RockBall{};
+		RockBall.name = "Rock_PBR_Preview";
+		RockBall.meshPath = "";
+		RockBall.materalName = "Rock061_4K";
+		RockBall.albedoPath = "textures/Rock061_4K/Rock061_4K-PNG_Color.png";
+		RockBall.normalPath = "textures/Rock061_4K/Rock061_4K-PNG_NormalDX.png";
+		RockBall.ormPath = "textures/Rock061_4K/Rock061_4K-PNG_ORM.png";
+		RockBall.displacementPath = "textures/Rock061_4K/Rock061_4K-PNG_Displacement.png";
+		RockBall.position = glm::vec3(10.0, 0.0, 0.0);
+		RockBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
+		SceneObjectDefinition OnyxBall;
+		OnyxBall.name = "OnyxBall";
+		OnyxBall.meshPath = "";
+		OnyxBall.materalName = "Onyx011_4K";
+		OnyxBall.albedoPath = "textures/Onyx011_4K/Onyx011_4K-PNG_Color.png";
+		OnyxBall.normalPath = "textures/Onyx011_4K/Onyx011_4K-PNG_NormalDX.png";
+		OnyxBall.ormPath = "textures/Onyx011_4K/Onyx011_4K-PNG_ORM.png";
+		OnyxBall.displacementPath = "textures/Onyx011_4K/Onyx011_4K-PNG_Displacement.png";
+		OnyxBall.position = glm::vec3(-10.0, 0.0, 0.0);
+		OnyxBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
+		SceneObjectDefinition TileFloor;
+		TileFloor.name = "TileFloor";
+		TileFloor.meshPath = "";
+		TileFloor.materalName = "Tiles107_2K";
+		TileFloor.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
+		TileFloor.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
+		TileFloor.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
+		TileFloor.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
+		TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
+		TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
+
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			{
-				"Metal_PBR_Preview",
-				"",
-				"Metal055A_4K",
-				"textures/Metal055A_4K/Metal055A_4K-PNG_Color.png", // Albedo
-				"textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png", //Normal
-				"textures/Metal055A_4K/Metal055A_4K-MRA.png", // ORM
-				"textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png", //Displacement
-				glm::vec3(0.0, 0.0, 0.0)
-			},
-			{
-				"Rock_PBR_Preview",
-				"",
-				"Rock061_4K",
-				"textures/Rock061_4K/Rock061_4K-PNG_Color.png",
-				"textures/Rock061_4K/Rock061_4K-PNG_NormalDX.png",
-				"textures/Rock061_4K/Rock061_4K-PNG_ORM.png",
-				"textures/Rock061_4K/Rock061_4K-PNG_Displacement.png",
-				glm::vec3(10.0, 0.0, 0.0)
-			},
-			{
-				"Onyx_PBR_Preview",
-				"",
-				"Onyx011_4K",
-				"textures/Onyx011_4K/Onyx011_4K-PNG_Color.png",
-				"textures/Onyx011_4K/Onyx011_4K-PNG_NormalDX.png",
-				"textures/Onyx011_4K/Onyx011_4K-PNG_ORM.png",
-				"textures/Onyx011_4K/Onyx011_4K-PNG_Displacement.png",
-				glm::vec3(-10.0, 0.0, 0.0)
-			}
-
+			MetalBall,
+			RockBall,
+			OnyxBall,
+			TileFloor
 		};
 
 		// The entire loading process is now a simple loop.
@@ -685,11 +702,6 @@ private:
 		{
 			return;
 		}
-
-		// Optional: Z-up to Y-up correction if your models are Z-up
-		// and you want to apply it uniformly before individual object transforms.
-		glm::mat4 coordinateSystemCorrection = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
 		for (uint32_t i = 0; i < renderableObjects.size(); ++i)
 		{
 			const auto& renderable = renderableObjects[i];
@@ -707,10 +719,8 @@ private:
 
 
 			// Assuming renderable.modelMatrix is what you want to render
-			//objectUbo.model = renderable.modelMatrix;
+			objectUbo.model = renderable.modelMatrix;
 
-			// If coordinateSystemCorrection is needed and not already baked into renderabel.modelMatrix:
-			objectUbo.model = coordinateSystemCorrection * renderable.modelMatrix;
 
 			objectDataDUBManager->updateDynamic(currentFrameIndex, i, objectUbo);
 		}

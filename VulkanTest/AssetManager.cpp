@@ -38,7 +38,7 @@ void AssetManager::cleanup()
 
 RenderableObject AssetManager::createRenderableObject(const SceneObjectDefinition& def)
 {
-    std::shared_ptr<MeshData> mesh = getMesh(def.meshPath);
+    std::shared_ptr<MeshData> mesh = getMesh(def);
     std::shared_ptr<Material> material = getMaterial(def);
 
     RenderableObject renderable{};
@@ -59,25 +59,46 @@ RenderableObject AssetManager::createRenderableObject(const SceneObjectDefinitio
     return renderable;
 }
 
-std::shared_ptr<MeshData> AssetManager::getMesh(const std::string& meshPath)
+std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def)
 {
-    if (m_Meshes.count(meshPath))
+    // Use the mesh path as a key, but if it's empty (for a primitive),
+    // generate a unique key from the object's name to enable caching.
+    std::string meshKey = def.meshPath;
+    if (meshKey.empty())
     {
-        return m_Meshes.at(meshPath);
+        // Example key for a sphere named "MetalBall": "primitive_mesh_MetalBall"
+        meshKey = "primitive_mesh_" + def.name;
     }
 
-    std::cout << "Loading new mesh: " << (meshPath.empty() ? "Generated Sphere" : meshPath) << std::endl;
+    // Check if a mesh with this key is already cached.
+    if (m_Meshes.count(meshKey))
+    {
+        return m_Meshes.at(meshKey);
+    }
+
+    std::cout << "Loading new mesh: " << (def.meshPath.empty() ? def.name + " (Generated Primitive)" : def.meshPath) << std::endl;
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
-    if (meshPath.empty())
+    if (def.meshPath.empty())
     {
-        ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
+        if (def.defaultModel == PrimitiveModelType::CREATE_SPHERE)
+        {
+            ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
+        }
+        else if (def.defaultModel == PrimitiveModelType::CREATE_PLANE)
+        {
+            ModelLoader::createPlane(50, 50, 1, 1, vertices, indices);
+        }
+        else
+        {
+            throw std::runtime_error("Invalid PrimitiveModelType in SceneObjectDefinition");
+        }
     }
     else
     {
-        ModelLoader::loadModel(meshPath, vertices, indices);
+        ModelLoader::loadModel(def.meshPath, vertices, indices);
     }
 
     auto newMesh = std::make_shared<MeshData>();
@@ -88,8 +109,10 @@ std::shared_ptr<MeshData> AssetManager::getMesh(const std::string& meshPath)
     newMesh->indexBuffer->create(m_pDevice->getLogicalDevice(), m_pDevice->getPhysicalDevice(), m_pDevice->getGraphicsQueue(), m_pCommandPool->getVkCommandPool(), indices);
 
     newMesh->indexCount = static_cast<uint32_t>(indices.size());
-    
-    m_Meshes[meshPath] = newMesh;
+
+    // **THE FIX**: Always cache the newly created mesh using its unique key.
+    m_Meshes[meshKey] = newMesh;
+
     return newMesh;
 }
 

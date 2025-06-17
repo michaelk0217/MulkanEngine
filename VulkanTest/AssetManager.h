@@ -40,7 +40,7 @@ public:
 	void cleanup();
 private:
 	// Private helper methods that implement the caching logic.
-	std::shared_ptr<MeshData> getMesh(const std::string& meshPath);
+	std::shared_ptr<MeshData> getMesh(const SceneObjectDefinition& def);
 	std::shared_ptr<Material> getMaterial(const SceneObjectDefinition& def);
 
 	// Pointers to essential Vulkan components (owned by VulkanEngine).
