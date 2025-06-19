@@ -3,6 +3,11 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <tiny_gltf.h>
+
 #include <cmath>
 #include <vector>
 
@@ -72,6 +77,109 @@ void ModelLoader::loadModel(const std::string& path, std::vector<Vertex>& vertic
 	}
 }
 
+void ModelLoader::loadGLTFModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+{
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err, warn;
+
+	// Determine file type based on extension
+	bool isBinary = (path.substr(path.find_last_of(".") + 1) == "glb");
+	bool ret = isBinary ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
+		: loader.LoadASCIIFromFile(&model, &err, &warn, path);
+
+	if (!warn.empty()) {
+		printf("Warning: %s\n", warn.c_str());
+	}
+
+	if (!err.empty() || !ret) {
+		throw std::runtime_error("Failed to load glTF file: " + err);
+	}
+
+	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+
+	// Iterate through all meshes in the glTF model
+	for (const auto& mesh : model.meshes) {
+		for (const auto& primitive : mesh.primitives) {
+			// Get accessor for vertex attributes
+			const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
+			const auto& normAccessor = primitive.attributes.find("NORMAL") != primitive.attributes.end()
+				? model.accessors[primitive.attributes.at("NORMAL")]
+				: tinygltf::Accessor{};
+			const auto& texAccessor = primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()
+				? model.accessors[primitive.attributes.at("TEXCOORD_0")]
+				: tinygltf::Accessor{};
+
+			// Get buffer views and buffers
+			const auto& posBufferView = model.bufferViews[posAccessor.bufferView];
+			const auto& posBuffer = model.buffers[posBufferView.buffer];
+			const float* positions = reinterpret_cast<const float*>(&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
+
+			const float* normals = nullptr;
+			if (normAccessor.count > 0) {
+				const auto& normBufferView = model.bufferViews[normAccessor.bufferView];
+				const auto& normBuffer = model.buffers[normBufferView.buffer];
+				normals = reinterpret_cast<const float*>(&normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
+			}
+
+			const float* texCoords = nullptr;
+			if (texAccessor.count > 0) {
+				const auto& texBufferView = model.bufferViews[texAccessor.bufferView];
+				const auto& texBuffer = model.buffers[texBufferView.buffer];
+				texCoords = reinterpret_cast<const float*>(&texBuffer.data[texBufferView.byteOffset + texAccessor.byteOffset]);
+			}
+
+			// Load vertices
+			for (size_t i = 0; i < posAccessor.count; ++i) {
+				Vertex vertex{};
+
+				// Position (mandatory)
+				vertex.pos = {
+					positions[i * 3 + 0],
+					positions[i * 3 + 1],
+					positions[i * 3 + 2]
+				};
+
+				// Normals (optional)
+				vertex.inNormal = normals ? glm::vec3{ normals[i * 3 + 0], normals[i * 3 + 1], normals[i * 3 + 2] }
+				: glm::vec3{ 0.0f, 0.0f, 1.0f };
+
+				// Texture coordinates (optional)
+				vertex.texCoord = texCoords ? glm::vec2{ texCoords[i * 2 + 0], texCoords[i * 2 + 1] }
+				: glm::vec2{ 0.0f, 0.0f };
+
+				// Default color (same as OBJ loader)
+				vertex.color = { 1.0f, 1.0f, 1.0f };
+
+				if (uniqueVertices.count(vertex) == 0) {
+					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+					vertices.push_back(vertex);
+				}
+			}
+
+			// Load indices
+			const auto& indexAccessor = model.accessors[primitive.indices];
+			const auto& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+			const auto& indexBuffer = model.buffers[indexBufferView.buffer];
+			const uint8_t* indexData = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
+
+			for (size_t i = 0; i < indexAccessor.count; ++i) {
+				uint32_t index;
+				if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+					index = reinterpret_cast<const uint16_t*>(indexData)[i];
+				}
+				else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+					index = reinterpret_cast<const uint32_t*>(indexData)[i];
+				}
+				else {
+					throw std::runtime_error("Unsupported index component type");
+				}
+				indices.push_back(uniqueVertices[vertices[index]]);
+			}
+		}
+	}
+}
+
 void ModelLoader::createSphere(float radius, uint32_t latSegments, uint32_t lonSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
 {
 	vertices.clear();
@@ -117,23 +225,23 @@ void ModelLoader::createSphere(float radius, uint32_t latSegments, uint32_t lonS
 			uint32_t first = lat * (lonSegments + 1) + lon;
 			uint32_t second = first + lonSegments + 1;
 
-			// Two Triangles per quad (counter-clockwise)
-			/*indices.push_back(first);
-			indices.push_back(second);
-			indices.push_back(first + 1);
-
-			indices.push_back(second);
-			indices.push_back(second + 1);
-			indices.push_back(first + 1);*/
-
 			// Clockwise winding
-			indices.push_back(first);
+			/*indices.push_back(first);
 			indices.push_back(first + 1);
 			indices.push_back(second);
 
 			indices.push_back(second);
 			indices.push_back(first + 1);
+			indices.push_back(second + 1);*/
+
+			// Counter-Clockwise winding
+			indices.push_back(first);
+			indices.push_back(second);
+			indices.push_back(first + 1);
+
+			indices.push_back(second);
 			indices.push_back(second + 1);
+			indices.push_back(first + 1);
 		}
 	}
 }
@@ -187,7 +295,7 @@ void ModelLoader::createPlane(float width, float height, uint32_t widthSegments,
 			// Calculate texture coordinates
 			vertex.texCoord = {
 				static_cast<float>(i) / static_cast<float>(widthSegments),
-				static_cast<float>(j) / static_cast<float>(heightSegments)
+				(static_cast<float>(j) / static_cast<float>(heightSegments))
 			};
 
 			// Assign a default white color
@@ -208,70 +316,16 @@ void ModelLoader::createPlane(float width, float height, uint32_t widthSegments,
 			const uint32_t bottomLeft = (j + 1) * (widthSegments + 1) + i;
 			const uint32_t bottomRight = bottomLeft + 1;
 
-			// Create two triangles for the quad with a clockwise winding order
-			// First triangle
+			// for some reason plane renders only when its clock wise winding
 			indices.push_back(topLeft);
-			indices.push_back(bottomLeft);
 			indices.push_back(topRight);
-
-			// Second triangle
-			indices.push_back(topRight);
-			indices.push_back(bottomLeft);
 			indices.push_back(bottomRight);
+			indices.push_back(topLeft);
+			indices.push_back(bottomRight);
+			indices.push_back(bottomLeft);
 		}
 	}
 }
-//void ModelLoader::createCube(float halfSize, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
-//{
-//	vertices = {
-//		// Position             // Color        // Tex Coords   // Normal
-//		// Back Face (-Z)
-//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  0.0f, -1.0f} },
-//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  0.0f, -1.0f} },
-//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  0.0f, -1.0f} },
-//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  0.0f, -1.0f} },
-//
-//		// Front Face (+Z)
-//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  0.0f,  1.0f} },
-//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  0.0f,  1.0f} },
-//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  0.0f,  1.0f} },
-//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  0.0f,  1.0f} },
-//
-//		// Left Face (-X)
-//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, {-1.0f,  0.0f,  0.0f} },
-//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {-1.0f,  0.0f,  0.0f} },
-//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, {-1.0f,  0.0f,  0.0f} },
-//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, {-1.0f,  0.0f,  0.0f} },
-//
-//		// Right Face (+X)
-//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 1.0f,  0.0f,  0.0f} },
-//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 1.0f,  0.0f,  0.0f} },
-//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 1.0f,  0.0f,  0.0f} },
-//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 1.0f,  0.0f,  0.0f} },
-//
-//		// Bottom Face (-Y)
-//		{ {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f, -1.0f,  0.0f} },
-//		{ { 1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f, -1.0f,  0.0f} },
-//		{ { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f, -1.0f,  0.0f} },
-//		{ {-1.0f, -1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f, -1.0f,  0.0f} },
-//
-//		// Top Face (+Y)
-//		{ {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, { 0.0f,  1.0f,  0.0f} },
-//		{ { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, { 0.0f,  1.0f,  0.0f} },
-//		{ { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, { 0.0f,  1.0f,  0.0f} },
-//		{ {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, { 0.0f,  1.0f,  0.0f} }
-//	};
-//
-//	indices.resize(36);
-//	for (uint32_t i = 0; i < 6; ++i) {
-//		indices[i * 6 + 0] = i * 4 + 0;
-//		indices[i * 6 + 1] = i * 4 + 1;
-//		indices[i * 6 + 2] = i * 4 + 2;
-//		indices[i * 6 + 3] = i * 4 + 0;
-//		indices[i * 6 + 4] = i * 4 + 2;
-//		indices[i * 6 + 5] = i * 4 + 3;
-//	}
-//}
 /**
  * @brief Creates a cube mesh centered at the origin.
  * @param halfSize The half-length of one side of the cube. The cube will span from -halfSize to +halfSize on each axis.
@@ -350,15 +404,13 @@ void ModelLoader::createCube(float halfSize, uint32_t segments, std::vector<Vert
 				uint32_t p11 = p01 + 1;
 
 				// Create two triangles for the quad (Counter-Clockwise winding)
-				// First triangle
+				indices.push_back(p01);
+				indices.push_back(p10);
 				indices.push_back(p00);
-				indices.push_back(p10);
-				indices.push_back(p01);
 
-				// Second triangle
-				indices.push_back(p01);
-				indices.push_back(p10);
 				indices.push_back(p11);
+				indices.push_back(p10);
+				indices.push_back(p01);
 			}
 		}
 	}

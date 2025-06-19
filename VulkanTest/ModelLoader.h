@@ -80,10 +80,19 @@ enum class PrimitiveModelType
 	CREATE_CUBE
 };
 
+enum class MeshFileType
+{
+	FILE_NULL,
+	FILE_OBJ,
+	FILE_GLTF
+};
+
 class ModelLoader
 {
 public:
 	static void loadModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	static void loadGLTFModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	
 	static void createSphere(float radius, uint32_t latSegments, uint32_t lonSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createPlane(float width, float height, uint32_t widthSegments, uint32_t heightSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createCube(float halfSize, uint32_t segments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);

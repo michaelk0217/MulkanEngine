@@ -32,6 +32,7 @@ struct SceneObjectDefinition
     glm::vec3 scale = glm::vec3(1.0f);
 
     PrimitiveModelType defaultModel = PrimitiveModelType::CREATE_NULL;
+    MeshFileType meshFileType = MeshFileType::FILE_NULL;
 };
 
 class VulkanVertexBuffer;

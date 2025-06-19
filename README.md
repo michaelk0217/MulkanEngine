@@ -24,6 +24,7 @@
 - **Tessellation for Displacement maps**
 - **Wireframe mode**: Runs a separate graphics pipeline for mesh / tessellation debugging. Toggle on / off using 'M' key.
 - **HDR Skybox**: Runs on-the-fly offscreen render to convert 2D HDR image into cubemap suitable for skybox.
+- **Image Based Lighting**:
 
 
 ## Showcase / Visuals
@@ -77,7 +78,7 @@
         - Ambient Occulsion (AO): Pre-calculated Shadows for small crevices to add depth
     - [x] Light Sources
     - [ ] New UBOs: To store an array of lights and their properties, which will be accessible to the fragment shader.
-    - [ ] Updated Shaders
+    - [x] Updated Shaders
 6. [ ] Shadow Mapping
 7. [ ] Entity-Componet-System (ECS) pattern for defining game objects.
 

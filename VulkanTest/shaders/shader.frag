@@ -15,9 +15,16 @@ layout(binding = 2) uniform SceneLightingUBO
     vec4 viewPos;
 } sceneUbo;
 
+// PBR SAMPLERS
 layout(binding = 3) uniform sampler2D albedoMap;
 layout(binding = 4) uniform sampler2D normalMap;
 layout(binding = 5) uniform sampler2D ormMap;
+
+// IBL SAMPLERS
+layout(binding = 8) uniform samplerCube irradianceMap;
+layout(binding = 9) uniform samplerCube prefilterMap;
+layout(binding = 10) uniform sampler2D brdfLut;
+
 
 const float PI = 3.14159265359;
 
@@ -65,21 +72,12 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 }
 
 void main() {
-
-// TEMPORARY TEST: Hardcode albedo and roughness to safe, neutral values.
-    // vec3 albedo = vec3(0.5, 0.5, 0.5); // A mid-grey non-metal
-    // float roughness = 0.5;
-    // float metallic = 0.0;
-    // float ao = 1.0; // No ambient occlusion
-
+    // --- Material Property Setup ---
     vec3 albedo = texture(albedoMap, inTexCoord).rgb;
-    // vec3 albedo = pow(texture(albedoMap, inTexCoord).rgb, vec3(2.2));
-
     vec3 ormData = texture(ormMap, inTexCoord).rgb;
     float ao = ormData.r;
     float roughness = ormData.g;
     float metallic = ormData.b;
-
     vec3 N = normalize(inNormalWorld); // The surface normal
     vec3 V = normalize(sceneUbo.viewPos.xyz - inFragPosWorld); // The view vector
 
@@ -93,44 +91,40 @@ void main() {
     // (loop if multiple lights)
     // for Lo is our outgoing radiance for single light
     vec3 Lo = vec3(0.0);
-
-    // Light vector and Halfway vector
     vec3 L = normalize(-sceneUbo.lightDir.xyz);
     vec3 H = normalize(V + L);
-
-    // radiance (color * intensity)
     vec3 radiance = sceneUbo.lightColor.rgb * sceneUbo.lightColor.w;
-
-    // Calculate Cook-Torrance BRDF (Bidirectional Reflectance Distribution Function)
     float NDF = distributionGGX(N, H, roughness);
     float G = geometrySmith(N, V, L, roughness);
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-    // Calculate especular component of BRDF
-    vec3 numerator = NDF * G * F;
+    vec3 F_direct = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    vec3 numerator = NDF * G * F_direct;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // Add small epsilon to prevent division by zero.
-    vec3 specular = numerator / denominator;
-
-    // Calculate diffuse component (based on Lambertian reflection)
-    // kD is the ratio of reflected light vs. refracted light
-    // Using (1.0 - F) for energy conservation
+    vec3 specular_direct = numerator / denominator;
     // Non-Metals (metallic = 0) reflect all lights diffusely.
-    vec3 kD = vec3(1.0) - F;
-    kD *= 1.0 - metallic;
-
-    // the diffuse BRDF, divided for Pi for normalization
-    vec3 diffuse = kD * albedo / PI;
-
-    // Combining result and add to the outgoing radiance
-    // NdotL is the cosine of the angle, accounting for the light hitting the surface at an angle.
+    vec3 kD_direct = vec3(1.0) - F_direct;
+    kD_direct *= 1.0 - metallic;
     float NdotL = max(dot(N, L), 0.0);
-    Lo += (diffuse + specular) * radiance * NdotL;
-
+    Lo += (kD_direct * albedo / PI + specular_direct) * radiance * NdotL;
     // --- End Direct Lighting Calculation ---
+
+    // --- Start Indirect Lighting Calculation ---
+    vec3 F_indirect = fresnelSchlick(max(dot(N, V), 0.0), F0);
+    vec3 kS = F_indirect;
+    vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metallic; // Non-metals have no metallic reflections
+    // Indirect Diffuse (from Irradiance Map)
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 diffuse_indirect = irradiance * albedo;
+    // 2. Indirect Specular (from Prefilter Map and BRDF LUT)
+    vec3 R = reflect(-V, N);
+    const float MAX_REFLECTION_LOD = 4.0; // Should match number of mips - 1
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
+    vec2 brdf = texture(brdfLut, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular_indirect = prefilteredColor * (F_indirect * brdf.x + brdf.y);
 
     // Calculate Ambient Lighting
     // -- Simple Approximation for indirect light, modulated by the Ambient Occulsion map.
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 ambient = (kD * diffuse_indirect + specular_indirect) * ao;
 
     // Combining direct lighting (Lo) and indirect/ambient lighting
     vec3 color = ambient + Lo;

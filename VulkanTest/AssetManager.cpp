@@ -103,7 +103,18 @@ std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def
     }
     else
     {
-        ModelLoader::loadModel(def.meshPath, vertices, indices);
+        if (def.meshFileType == MeshFileType::FILE_OBJ)
+        {
+            ModelLoader::loadModel(def.meshPath, vertices, indices);
+        }
+        else if (def.meshFileType == MeshFileType::FILE_GLTF)
+        {
+            ModelLoader::loadGLTFModel(def.meshPath, vertices, indices);
+        }
+        else
+        {
+            throw std::runtime_error("Invalid MeshFileType in SceneObjectDefinition");
+        }
     }
 
     auto newMesh = std::make_shared<MeshData>();

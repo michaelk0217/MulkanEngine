@@ -1,6 +1,6 @@
 #include "VulkanTexture.h"
 
-#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 
@@ -110,6 +110,7 @@ void VulkanTexture::createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysde
 	VulkanImage::createImage(
 		vkdevice, vkphysdevice,
 		texWidth, texHeight,
+		1, 1,
 		VK_FORMAT_R8G8B8A8_SRGB,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -127,7 +128,7 @@ void VulkanTexture::createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysde
 	vkFreeMemory(vkdevice, stagingBufferMemory, nullptr);
 
 	createTextureImageView(device, VK_FORMAT_R8G8B8A8_SRGB);
-	createTextureSampler(device, vkphysdevice);
+	createTextureSampler(device, vkphysdevice, 1);
 }
 
 // This function loads the HDR but DOES NOT create a cubemap. It creates a simple 2D float texture.
@@ -161,6 +162,7 @@ void VulkanTexture::createTextureHDR(VkDevice vkdevice, VkPhysicalDevice vkphysd
 	VulkanImage::createImage(
 		vkdevice, vkphysdevice,
 		texWidth, texHeight,
+		1, 1,
 		VK_FORMAT_R32G32B32A32_SFLOAT, // Float format for HDR
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // Just needs to be sampled
@@ -178,15 +180,40 @@ void VulkanTexture::createTextureHDR(VkDevice vkdevice, VkPhysicalDevice vkphysd
 
 	// Create the image view and sampler
 	textureImageView = VulkanImage::createImageView(device, textureImage, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
-	createTextureSampler(device, vkphysdevice); // Assuming this is your existing sampler function
+	createTextureSampler(device, vkphysdevice, 1); // Assuming this is your existing sampler function
 }
 
-void VulkanTexture::createCubemap(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t width, uint32_t height)
+void VulkanTexture::createCubemap(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t width, uint32_t height, uint32_t mipLevels)
 {
 	device = vkdevice;
-	VulkanImage::createCubeMapImage(vkdevice, vkphysdevice, width, height, textureImage, textureImageMemory);
-	textureImageView = VulkanImage::createCubeMapImageView(vkdevice, textureImage);
-	createTextureSampler(device, vkphysdevice);
+	VulkanImage::createCubeMapImage(vkdevice, vkphysdevice, width, height, mipLevels, textureImage, textureImageMemory);
+	textureImageView = VulkanImage::createCubeMapView(vkdevice, textureImage, mipLevels);
+	createTextureSampler(device, vkphysdevice, mipLevels);
+}
+
+void VulkanTexture::createRenderableTexture(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage)
+{
+	this->device = vkdevice;
+	uint32_t mipLevels = 1;
+
+	VulkanImage::createImage(
+		device, vkphysdevice,
+		width, height,
+		mipLevels, 1,
+		format,
+		VK_IMAGE_TILING_OPTIMAL,
+		usage,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		textureImage, textureImageMemory
+	);
+
+	textureImageView = VulkanImage::createImageView(
+		device,
+		textureImage,
+		format,
+		VK_IMAGE_ASPECT_COLOR_BIT
+	);
+	createTextureSampler(device, vkphysdevice, mipLevels);
 }
 
 void VulkanTexture::createTextureImageView(VkDevice vkdevice, VkFormat format)
@@ -196,12 +223,12 @@ void VulkanTexture::createTextureImageView(VkDevice vkdevice, VkFormat format)
 
 void VulkanTexture::createSkyboxHdrImageView(VkDevice vkdevice)
 {
-	textureImageView = VulkanImage::createCubeMapImageView(vkdevice, textureImage);
+	textureImageView = VulkanImage::createCubeMapView(vkdevice, textureImage, 1);
 }
 
 
 
-void VulkanTexture::createTextureSampler(VkDevice vkdevice, VkPhysicalDevice vkphysdevice)
+void VulkanTexture::createTextureSampler(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t mipLevels)
 {
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(vkphysdevice, &properties);
@@ -222,7 +249,7 @@ void VulkanTexture::createTextureSampler(VkDevice vkdevice, VkPhysicalDevice vkp
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = 0.0f;
+	samplerInfo.maxLod = static_cast<float>(mipLevels);
 
 	if (vkCreateSampler(vkdevice, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
 	{

@@ -71,12 +71,12 @@ void VulkanRenderPass::create(VkDevice vkdevice, VkPhysicalDevice physicalDevice
 	}
 }
 
-void VulkanRenderPass::offscreen_rendering_create(VkDevice device, VkPhysicalDevice physicalDevice)
+void VulkanRenderPass::offscreen_rendering_create(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat colorAttachmentFormat)
 {
 	this->device = device;
 
 	VkAttachmentDescription colorAttachment{};
-	colorAttachment.format = VK_FORMAT_R32G32B32A32_SFLOAT; // HDR format for the cubemap face
+	colorAttachment.format = colorAttachmentFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // Clear the attachment before drawing to it
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;

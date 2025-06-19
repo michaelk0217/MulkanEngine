@@ -69,7 +69,28 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	tessUboLayoutBinding.pImmutableSamplers = nullptr;
 	tessUboLayoutBinding.stageFlags = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 8> bindings = { 
+	VkDescriptorSetLayoutBinding irradianceSamplerLayoutBinding{};
+	irradianceSamplerLayoutBinding.binding = 8;
+	irradianceSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	irradianceSamplerLayoutBinding.descriptorCount = 1;
+	irradianceSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	irradianceSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding prefilterSamplerLayoutBinding{};
+	prefilterSamplerLayoutBinding.binding = 9;
+	prefilterSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	prefilterSamplerLayoutBinding.descriptorCount = 1;
+	prefilterSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	prefilterSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding brdfLutSamplerLayoutBinding{};
+	brdfLutSamplerLayoutBinding.binding = 10;
+	brdfLutSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	brdfLutSamplerLayoutBinding.descriptorCount = 1;
+	brdfLutSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	brdfLutSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 11> bindings = { 
 		frameUboLayoutBinding, 
 		objectUboLayoutBinding,
 		lightingUboLayoutBinding,
@@ -77,7 +98,10 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 		normalSamplerLayoutBinding,
 		ormSamplerLayoutBinding,
 		displacementSamplerLayoutBinding,
-		tessUboLayoutBinding
+		tessUboLayoutBinding,
+		irradianceSamplerLayoutBinding,
+		prefilterSamplerLayoutBinding,
+		brdfLutSamplerLayoutBinding
 	};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};

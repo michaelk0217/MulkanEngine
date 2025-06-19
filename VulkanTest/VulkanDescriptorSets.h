@@ -9,6 +9,16 @@
 #include "Renderable.h"
 #include "Lights.h"
 
+struct IblPacket
+{
+	VkImageView irradianceImageView;
+	VkSampler irradianceSampler;
+	VkImageView prefilterImageView;
+	VkSampler prefilterSampler;
+	VkImageView brdfLutImageView;
+	VkSampler brdfLutSampler;
+};
+
 class VulkanDescriptorSets
 {
 public:
@@ -30,7 +40,8 @@ public:
 		const std::vector<VkBuffer> objectDUBuffers,
 		const std::vector<VkBuffer> lightingUboBuffers,
 		const std::vector<VkBuffer> tessUboBuffers,
-		std::map<std::string, std::shared_ptr<Material>>& materials
+		std::map<std::string, std::shared_ptr<Material>>& materials,
+		IblPacket iblPacket
 	);
 
 	void createForSkybox(

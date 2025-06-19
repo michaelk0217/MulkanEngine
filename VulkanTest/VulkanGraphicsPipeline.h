@@ -41,6 +41,14 @@ public:
 		const std::string& fragShaderPath
 	);
 
+	void createForLutGeneration(
+		VkDevice device,
+		VkPipelineLayout pipelineLayout,
+		VkRenderPass renderPass,
+		const std::string& vertShaderPath,
+		const std::string& fragShaderPath
+	);
+
 	void destroy();
 
 	VkPipeline getVkPipeline() const;

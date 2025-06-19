@@ -84,7 +84,8 @@ void VulkanDescriptorSets::createForMaterials(
 	VkDescriptorSetLayout descriptorSetLayout, uint32_t numFrames, 
 	const std::vector<VkBuffer> frameUboBuffers, const std::vector<VkBuffer> objectDUBuffers, 
 	const std::vector<VkBuffer> lightingUboBuffers, const std::vector<VkBuffer> tessUboBuffers,
-	std::map<std::string, std::shared_ptr<Material>>& materials)
+	std::map<std::string, std::shared_ptr<Material>>& materials,
+	IblPacket iblPacket)
 {
 	this->device = device;
 
@@ -149,7 +150,22 @@ void VulkanDescriptorSets::createForMaterials(
 			tessBufferInfo.offset = 0;
 			tessBufferInfo.range = sizeof(TessellationUBO);
 
-			std::array<VkWriteDescriptorSet, 8> descriptorWrites{};
+			VkDescriptorImageInfo irradianceMapImageInfo{};
+			irradianceMapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			irradianceMapImageInfo.imageView = iblPacket.irradianceImageView;
+			irradianceMapImageInfo.sampler = iblPacket.irradianceSampler;
+
+			VkDescriptorImageInfo prefilterMapImageInfo{};
+			prefilterMapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			prefilterMapImageInfo.imageView = iblPacket.prefilterImageView;
+			prefilterMapImageInfo.sampler = iblPacket.prefilterSampler;
+
+			VkDescriptorImageInfo brdfLutMapImageInfo{};
+			brdfLutMapImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			brdfLutMapImageInfo.imageView = iblPacket.brdfLutImageView;
+			brdfLutMapImageInfo.sampler = iblPacket.brdfLutSampler;
+
+			std::array<VkWriteDescriptorSet, 11> descriptorWrites{};
 
 			// Frame UBO
 			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -222,6 +238,33 @@ void VulkanDescriptorSets::createForMaterials(
 			descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			descriptorWrites[7].descriptorCount = 1;
 			descriptorWrites[7].pBufferInfo = &tessBufferInfo;
+
+			// Irradiance Map UBO
+			descriptorWrites[8].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[8].dstSet = material->frameSpecificDescriptorSets[i];
+			descriptorWrites[8].dstBinding = 8;
+			descriptorWrites[8].dstArrayElement = 0;
+			descriptorWrites[8].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[8].descriptorCount = 1;
+			descriptorWrites[8].pImageInfo = &irradianceMapImageInfo;
+
+			// Prefilter Map UBO
+			descriptorWrites[9].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[9].dstSet = material->frameSpecificDescriptorSets[i];
+			descriptorWrites[9].dstBinding = 9;
+			descriptorWrites[9].dstArrayElement = 0;
+			descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[9].descriptorCount = 1;
+			descriptorWrites[9].pImageInfo = &prefilterMapImageInfo;
+
+			// BrdfLut Map UBO
+			descriptorWrites[10].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[10].dstSet = material->frameSpecificDescriptorSets[i];
+			descriptorWrites[10].dstBinding = 10;
+			descriptorWrites[10].dstArrayElement = 0;
+			descriptorWrites[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[10].descriptorCount = 1;
+			descriptorWrites[10].pImageInfo = &brdfLutMapImageInfo;
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}

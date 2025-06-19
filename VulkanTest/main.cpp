@@ -150,6 +150,9 @@ private:
 	std::vector<RenderableObject> renderableObjects;
 
 	std::unique_ptr<VulkanTexture> skyboxTexture;
+	std::unique_ptr<VulkanTexture> irradianceMap;
+	std::unique_ptr<VulkanTexture> prefilterMap;
+	std::unique_ptr<VulkanTexture> brdfLut;
 
 	// UniformBuffers
 	std::unique_ptr<VulkanUniformBuffers> frameUboManager;
@@ -285,9 +288,9 @@ private:
 
 		const uint32_t cubemapSize = 1024;
 		skyboxTexture = std::make_unique<VulkanTexture>();
-		skyboxTexture->createCubemap(devices->getLogicalDevice(), devices->getPhysicalDevice(), cubemapSize, cubemapSize);
+		skyboxTexture->createCubemap(devices->getLogicalDevice(), devices->getPhysicalDevice(), cubemapSize, cubemapSize, 1);
 
-		loadCubeModel();
+		loadCubeModel(); // loads m_skyboxCubeBuffer
 
 		generateSkyboxCubeMap(*hdrSourceTexture, *skyboxTexture, cubemapSize);
 
@@ -307,12 +310,25 @@ private:
 		lightingUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(SceneLightingUBO));
 
 		sceneLights.dirLight.direction = glm::normalize(glm::vec4(-0.5, -1.0f, -0.5f, 0.0f));
-		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 5.0f); //w intensity
+		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 10.0f); //w intensity
 
 		tessellationUboManager = std::make_unique<VulkanUniformBuffers>();
 		tessellationUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(TessellationUBO));
 
 		// ------------------------
+
+		generateIrradianceMap(); // generates irradianceMap of skybox & requires frameUboManager to be initialized
+		generatePrefilerMap(); // generates prefilterMap of skybox
+		generateBrdfLut();
+
+		IblPacket iblPacket{};
+		iblPacket.irradianceImageView = irradianceMap->getImageView();
+		iblPacket.irradianceSampler = irradianceMap->getSampler();
+		iblPacket.prefilterImageView = prefilterMap->getImageView();
+		iblPacket.prefilterSampler = prefilterMap->getSampler();
+		iblPacket.brdfLutImageView = brdfLut->getImageView();
+		iblPacket.brdfLutSampler = brdfLut->getSampler();
+
 		m_pbrDescriptorSets = std::make_unique<VulkanDescriptorSets>();
 		m_pbrDescriptorSets->createForMaterials(
 			devices->getLogicalDevice(),
@@ -323,7 +339,8 @@ private:
 			objectDataDUBManager->getBuffers(),
 			lightingUboManager->getBuffers(),
 			tessellationUboManager->getBuffers(),
-			m_AssetManager->getMaterials()
+			m_AssetManager->getMaterials(),
+			iblPacket
 		);
 
 		m_skyboxDescriptorSets = std::make_unique<VulkanDescriptorSets>();
@@ -532,6 +549,14 @@ private:
 		if (skyboxTexture) skyboxTexture->destroy();
 		skyboxTexture.reset();
 
+		if (irradianceMap) irradianceMap->destroy();
+		irradianceMap.reset();
+
+		if (prefilterMap) prefilterMap->destroy();
+		prefilterMap.reset();
+
+		if (brdfLut) brdfLut->destroy();
+		brdfLut.reset();
 
 		if (m_skyboxCubeVertexBuffer) m_skyboxCubeVertexBuffer->destroy();
 		m_skyboxCubeVertexBuffer.reset();
@@ -646,7 +671,7 @@ private:
 		MetalBall.normalPath = "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png";
 		MetalBall.ormPath = "textures/Metal055A_4K/Metal055A_4K-MRA.png";
 		MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
-		MetalBall.position = glm::vec3(0.0, 0.0, 5.0);
+		MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
 		MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
 
 		SceneObjectDefinition RockBall{};
@@ -660,17 +685,6 @@ private:
 		RockBall.position = glm::vec3(10.0, 0.0, 0.0);
 		RockBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
 
-		SceneObjectDefinition OnyxBall;
-		OnyxBall.name = "OnyxBall";
-		OnyxBall.meshPath = "";
-		OnyxBall.materialName = "Onyx011_4K";
-		OnyxBall.albedoPath = "textures/Onyx011_4K/Onyx011_4K-PNG_Color.png";
-		OnyxBall.normalPath = "textures/Onyx011_4K/Onyx011_4K-PNG_NormalDX.png";
-		OnyxBall.ormPath = "textures/Onyx011_4K/Onyx011_4K-PNG_ORM.png";
-		OnyxBall.displacementPath = "textures/Onyx011_4K/Onyx011_4K-PNG_Displacement.png";
-		OnyxBall.position = glm::vec3(-10.0, 0.0, 0.0);
-		OnyxBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-
 		SceneObjectDefinition TileFloor;
 		TileFloor.name = "TileFloor";
 		TileFloor.meshPath = "";
@@ -682,13 +696,6 @@ private:
 		TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
 		TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
 
-		SceneObjectDefinition MetalCube;
-		MetalCube.name = "MetalCube";
-		MetalCube.meshPath = "";
-		MetalCube.materialName = "Metal055A_4K";
-		MetalCube.position = glm::vec3(0.0, 3.0, 0.0);
-		MetalCube.defaultModel = PrimitiveModelType::CREATE_CUBE;
-
 		SceneObjectDefinition TileBall;
 		TileBall.name = "TileBall";
 		TileBall.meshPath = "";
@@ -697,16 +704,29 @@ private:
 		TileBall.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
 		TileBall.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
 		TileBall.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
-		TileBall.position = glm::vec3(0.0, 3.5, 0.0);
+		TileBall.position = glm::vec3(30.0, 0.0, 0.0);
 		TileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
+		SceneObjectDefinition MetalBall2{};
+		MetalBall2.name = "Metal2_PBR_Preview";
+		MetalBall2.meshPath = "";
+		MetalBall2.materialName = "Metal049A_2K";
+		MetalBall2.albedoPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Color.png";
+		MetalBall2.normalPath = "textures/Metal049A_2K/Metal049A_2K-PNG_NormalDX.png";
+		MetalBall2.ormPath = "textures/Metal049A_2K/Metal049A_2K-PNG_ORM.png";
+		MetalBall2.displacementPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Displacement.png";
+		MetalBall2.position = glm::vec3(20.0, 0.0, 0.0);
+		MetalBall2.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+
 
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
 			MetalBall,
 			RockBall,
-			OnyxBall,
-			TileFloor,
-			TileBall
+			//TileFloor,
+			TileBall,
+			MetalBall2
+
 		};
 
 		// The entire loading process is now a simple loop.
@@ -912,7 +932,503 @@ private:
 
 	}
 
-	// In VulkanEngine.cpp
+	// creates low-resolution, blurry version of skybox
+	void generateIrradianceMap()
+	{
+		std::cout << "Generating Irradiance Map..." << std::endl;
+		const uint32_t irradianceMapSize = 32;
+		irradianceMap = std::make_unique<VulkanTexture>();
+		irradianceMap->createCubemap(devices->getLogicalDevice(), devices->getPhysicalDevice(), irradianceMapSize, irradianceMapSize, 1);
+
+		auto conversionRenderPass = std::make_unique<VulkanRenderPass>();
+		conversionRenderPass->offscreen_rendering_create(devices->getLogicalDevice(), devices->getPhysicalDevice());
+
+		auto irradianceLayout = std::make_unique<VulkanDescriptorSetLayout>();
+		irradianceLayout->createForSkybox(devices->getLogicalDevice()); // Re-use skybox layout (UBO + samplerCube)
+
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(glm::mat4);
+
+		auto irradiancePipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		irradiancePipelineLayout->create(devices->getLogicalDevice(), irradianceLayout->getVkDescriptorSetLayout(), 1u, &pushConstantRange);
+
+		auto irradianceConvDescriptorSet = std::make_unique<VulkanDescriptorSets>();
+		irradianceConvDescriptorSet->createForSkybox(
+			devices->getLogicalDevice(),
+			descriptorPool->getVkDescriptorPool(),
+			irradianceLayout->getVkDescriptorSetLayout(),
+			1, // Only need one set for this process
+			frameUboManager->getBuffers(), // This is a bit of a hack, we only need the layout
+			*skyboxTexture
+		);
+
+		auto irradiancePipeline = std::make_unique<VulkanGraphicsPipeline>();
+		irradiancePipeline->createForConversion(
+			devices->getLogicalDevice(),
+			irradiancePipelineLayout->getVkPipelineLayout(),
+			conversionRenderPass->getVkRenderPass(),
+			"shaders/equidirect_to_cube.vert.spv", // We can reuse the same vertex shader
+			"shaders/irradiance.frag.spv"
+		);
+
+		std::vector<VkFramebuffer> framebuffers(6);
+		std::vector<VkImageView> faceViews(6);
+
+		for (uint32_t i = 0; i < 6; ++i) {
+			// Create a temporary image view for a SINGLE face of the cubemap
+			VkImageViewCreateInfo viewInfo{};
+			viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewInfo.image = irradianceMap->getImage(); // The image handle from the cubemap object
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewInfo.subresourceRange.baseMipLevel = 0;
+			viewInfo.subresourceRange.levelCount = 1;
+			viewInfo.subresourceRange.baseArrayLayer = i; // This selects the face
+			viewInfo.subresourceRange.layerCount = 1;
+
+			vkCreateImageView(devices->getLogicalDevice(), &viewInfo, nullptr, &faceViews[i]);
+
+			VkFramebufferCreateInfo fbInfo{};
+			fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			fbInfo.renderPass = conversionRenderPass->getVkRenderPass();
+			fbInfo.attachmentCount = 1;
+			fbInfo.pAttachments = &faceViews[i];
+			fbInfo.width = irradianceMapSize;
+			fbInfo.height = irradianceMapSize;
+			fbInfo.layers = 1;
+
+			vkCreateFramebuffer(devices->getLogicalDevice(), &fbInfo, nullptr, &framebuffers[i]);
+
+		}
+
+		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		captureProjection[1][1] *= -1;
+
+		glm::mat4 captureViews[] =
+		{
+			// Right (+X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Left (-X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(-1.0f, 0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+
+			// This is the view for LOOKING DOWN, which we store in the TOP (+Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+
+			// This is the view for LOOKING UP, which we store in the BOTTOM (-Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+
+			// Back (+Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Front (-Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+
+		VkCommandBuffer cmd = VulkanCommandBuffers::beginSingleTimeCommands(devices->getLogicalDevice(), commandPool->getVkCommandPool());
+
+		for (uint32_t i = 0; i < 6; i++)
+		{
+			VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} }; // Define a clear color
+
+			VkRenderPassBeginInfo renderPassBeginInfo{};
+			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			renderPassBeginInfo.renderPass = conversionRenderPass->getVkRenderPass();
+			renderPassBeginInfo.framebuffer = framebuffers[i];
+			renderPassBeginInfo.renderArea.extent.width = irradianceMapSize;
+			renderPassBeginInfo.renderArea.extent.height = irradianceMapSize;
+			renderPassBeginInfo.renderArea.offset = { 0, 0 };
+			renderPassBeginInfo.clearValueCount = 1;
+			renderPassBeginInfo.pClearValues = &clearColor;
+
+			vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+			VkViewport viewport = { 0.0f, 0.0f, (float)irradianceMapSize, (float)irradianceMapSize, 0.0f, 1.0f };
+			VkRect2D scissor = { {0, 0}, {irradianceMapSize, irradianceMapSize} };
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, irradiancePipeline->getVkPipeline());
+
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				irradiancePipelineLayout->getVkPipelineLayout(),
+				0, 1,
+				irradianceConvDescriptorSet->getVkDescriptorSetsRaw(),
+				0, nullptr
+			);
+
+			glm::mat4 mvp = captureProjection * captureViews[i];
+			vkCmdPushConstants(cmd, irradiancePipelineLayout->getVkPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
+
+			VkBuffer vertexBuffers[] = { m_skyboxCubeVertexBuffer->getVkBuffer() };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+			// draw 36 vertices of cube
+			vkCmdDraw(cmd, 36, 1, 0, 0);
+
+			vkCmdEndRenderPass(cmd);
+		}
+
+		VulkanCommandBuffers::endSingleTimeCommands(cmd, devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool());
+		vkQueueWaitIdle(devices->getGraphicsQueue());
+
+		VulkanImage::transitionImageLayout(
+			devices->getLogicalDevice(),
+			devices->getGraphicsQueue(),
+			commandPool->getVkCommandPool(),
+			irradianceMap->getImage(),
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			6 // <-- This is the layer count for the whole cubemap
+		);
+
+		for (uint32_t i = 0; i < 6; i++)
+		{
+			vkDestroyFramebuffer(devices->getLogicalDevice(), framebuffers[i], nullptr);
+			vkDestroyImageView(devices->getLogicalDevice(), faceViews[i], nullptr);
+		}
+
+		irradianceConvDescriptorSet->destroy();
+		irradianceConvDescriptorSet.reset();
+
+		irradiancePipeline->destroy();
+		irradiancePipeline.reset();
+		
+		irradiancePipelineLayout->destroy();
+		irradiancePipelineLayout.reset();
+
+		irradianceLayout->destroy();
+		irradianceLayout.reset();
+
+		conversionRenderPass->destroy();
+		conversionRenderPass.reset();
+	}
+
+	void generatePrefilerMap()
+	{
+		std::cout << "Generating Prefilter Map..." << std::endl;
+		const uint32_t prefilterMapSize = 128;
+		const uint32_t maxMipLevels = static_cast<uint32_t>(floor(log2(prefilterMapSize))) + 1;
+
+		prefilterMap = std::make_unique<VulkanTexture>();
+		prefilterMap->createCubemap(devices->getLogicalDevice(), devices->getPhysicalDevice(), prefilterMapSize, prefilterMapSize, maxMipLevels);
+
+		auto conversionRenderPass = std::make_unique<VulkanRenderPass>();
+		conversionRenderPass->offscreen_rendering_create(devices->getLogicalDevice(), devices->getPhysicalDevice());
+
+		auto prefilerDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
+		prefilerDescriptorSetLayout->createForSkybox(devices->getLogicalDevice()); // Re-use skybox layout (UBO + samplerCube)
+
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(glm::mat4);
+
+		VkPushConstantRange prefilterPushConstantRange{};
+		prefilterPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		prefilterPushConstantRange.offset = sizeof(glm::mat4);
+		prefilterPushConstantRange.size = sizeof(float);
+
+		std::array<VkPushConstantRange, 2> pushConstants = { pushConstantRange, prefilterPushConstantRange };
+
+		auto prefilterPipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		prefilterPipelineLayout->create(devices->getLogicalDevice(), prefilerDescriptorSetLayout->getVkDescriptorSetLayout(), 2u, pushConstants.data());
+
+		auto prefilterDescriptorSet = std::make_unique<VulkanDescriptorSets>();
+		prefilterDescriptorSet->createForSkybox(
+			devices->getLogicalDevice(),
+			descriptorPool->getVkDescriptorPool(),
+			prefilerDescriptorSetLayout->getVkDescriptorSetLayout(),
+			1, // Only need one set for this process
+			frameUboManager->getBuffers(), // This is a bit of a hack, we only need the layout
+			*skyboxTexture
+		);
+
+		auto prefilterPipeline = std::make_unique<VulkanGraphicsPipeline>();
+		prefilterPipeline->createForConversion(
+			devices->getLogicalDevice(),
+			prefilterPipelineLayout->getVkPipelineLayout(),
+			conversionRenderPass->getVkRenderPass(),
+			"shaders/equidirect_to_cube.vert.spv",
+			"shaders/prefilter.frag.spv" // NEW shader
+		);
+
+
+		glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		captureProjection[1][1] *= -1;
+		glm::mat4 captureViews[] =
+		{
+			// Right (+X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Left (-X)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(-1.0f, 0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+
+			// This is the view for LOOKING DOWN, which we store in the TOP (+Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+
+			// This is the view for LOOKING UP, which we store in the BOTTOM (-Y) face of the cubemap.
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+
+			// Back (+Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			// Front (-Z)
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+
+
+		for (uint32_t mip = 0; mip < maxMipLevels; ++mip)
+		{
+			uint32_t mipWidth = static_cast<uint32_t>(prefilterMapSize * pow(0.5, mip));
+			uint32_t mipHeight = static_cast<uint32_t>(prefilterMapSize * pow(0.5, mip));
+
+			// You'll need to create a new framebuffer and image view for EACH mip level inside this loop
+			// ... or create all mip-level image views at the start
+
+			std::vector<VkFramebuffer> framebuffers(6);
+			std::vector<VkImageView> faceViews(6);
+
+			for (uint32_t i = 0; i < 6; ++i) {
+				// Create a temporary image view for a SINGLE face of the cubemap
+				VkImageViewCreateInfo viewInfo{};
+				viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				viewInfo.image = prefilterMap->getImage(); // The image handle from the cubemap object
+				viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				viewInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+				viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				viewInfo.subresourceRange.baseMipLevel = mip;
+				viewInfo.subresourceRange.levelCount = 1;
+				viewInfo.subresourceRange.baseArrayLayer = i; // This selects the face
+				viewInfo.subresourceRange.layerCount = 1;
+
+				vkCreateImageView(devices->getLogicalDevice(), &viewInfo, nullptr, &faceViews[i]);
+
+				VkFramebufferCreateInfo fbInfo{};
+				fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				fbInfo.renderPass = conversionRenderPass->getVkRenderPass();
+				fbInfo.attachmentCount = 1;
+				fbInfo.pAttachments = &faceViews[i];
+				fbInfo.width = mipWidth;
+				fbInfo.height = mipHeight;
+				fbInfo.layers = 1;
+
+				vkCreateFramebuffer(devices->getLogicalDevice(), &fbInfo, nullptr, &framebuffers[i]);
+			}
+
+			float roughness = (float)mip / (float)(maxMipLevels - 1);
+			// You'll need to pass this roughness value to the shader, likely via Push Constants.
+			// Update your prefilter pipeline layout to accept a push constant.
+
+			// Then, inside this mip loop, loop through the 6 faces and render, just like before.
+			// Remember to set the viewport to mipWidth and mipHeight!
+
+			VkCommandBuffer cmd = VulkanCommandBuffers::beginSingleTimeCommands(devices->getLogicalDevice(), commandPool->getVkCommandPool());
+
+
+			for (uint32_t i = 0; i < 6; i++)
+			{
+				VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+
+				VkRenderPassBeginInfo renderPassBeginInfo{};
+				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				renderPassBeginInfo.renderPass = conversionRenderPass->getVkRenderPass();
+				renderPassBeginInfo.framebuffer = framebuffers[i];
+				renderPassBeginInfo.renderArea.extent.width = mipWidth;
+				renderPassBeginInfo.renderArea.extent.height = mipWidth;
+				renderPassBeginInfo.renderArea.offset = { 0, 0 };
+				renderPassBeginInfo.clearValueCount = 1;
+				renderPassBeginInfo.pClearValues = &clearColor;
+
+				vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+				VkViewport viewport = { 0.0f, 0.0f, (float)mipWidth, (float)mipHeight, 0.0f, 1.0f };
+				VkRect2D scissor = { {0, 0}, {mipWidth, mipHeight} };
+				vkCmdSetViewport(cmd, 0, 1, &viewport);
+				vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+
+				vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, prefilterPipeline->getVkPipeline());
+
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+					prefilterPipelineLayout->getVkPipelineLayout(),
+					0, 1,
+					prefilterDescriptorSet->getVkDescriptorSetsRaw(),
+					0, nullptr
+				);
+
+				glm::mat4 mvp = captureProjection * captureViews[i];
+				vkCmdPushConstants(cmd, prefilterPipelineLayout->getVkPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
+				vkCmdPushConstants(cmd, prefilterPipelineLayout->getVkPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mvp), sizeof(roughness), &roughness);
+
+				VkBuffer vertexBuffers[] = { m_skyboxCubeVertexBuffer->getVkBuffer() };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+				// draw 36 vertices of cube
+				vkCmdDraw(cmd, 36, 1, 0, 0);
+
+				vkCmdEndRenderPass(cmd);
+			}
+
+			/*VulkanImage::recordTransitionImageLayout(
+				cmd,
+				prefilterMap->getImage(),
+				VK_FORMAT_R32G32B32A32_SFLOAT,
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				6,
+				0,
+				maxMipLevels
+			);*/
+			VulkanCommandBuffers::endSingleTimeCommands(cmd, devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool());
+			vkQueueWaitIdle(devices->getGraphicsQueue());
+
+			for (uint32_t i = 0; i < 6; i++)
+			{
+				vkDestroyFramebuffer(devices->getLogicalDevice(), framebuffers[i], nullptr);
+				vkDestroyImageView(devices->getLogicalDevice(), faceViews[i], nullptr);
+			}
+		}
+
+		VulkanImage::transitionImageLayout(
+			devices->getLogicalDevice(),
+			devices->getGraphicsQueue(),
+			commandPool->getVkCommandPool(),
+			prefilterMap->getImage(),
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			6,
+			0,
+			maxMipLevels
+		);
+
+		
+		prefilterDescriptorSet->destroy();
+		prefilterDescriptorSet.reset();
+
+		prefilterPipeline->destroy();
+		prefilterPipeline.reset();
+
+		prefilterPipelineLayout->destroy();
+		prefilterPipelineLayout.reset();
+
+		prefilerDescriptorSetLayout->destroy();
+		prefilerDescriptorSetLayout.reset();
+
+		conversionRenderPass->destroy();
+		conversionRenderPass.reset();
+	}
+
+	void generateBrdfLut()
+	{
+		std::cout << "Generating BRDF Lookup table..." << std::endl;
+		const uint32_t lutSize = 512;
+		brdfLut = std::make_unique<VulkanTexture>();
+		brdfLut->createRenderableTexture(
+			devices->getLogicalDevice(),
+			devices->getPhysicalDevice(),
+			lutSize, lutSize,
+			VK_FORMAT_R16G16_SFLOAT,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+		);
+
+		auto conversionRenderPass = std::make_unique<VulkanRenderPass>();
+		conversionRenderPass->offscreen_rendering_create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VK_FORMAT_R16G16_SFLOAT);
+
+		VkImageView brdfImageView = brdfLut->getImageView();
+		VkFramebuffer lutFramebuffer;
+		VkFramebufferCreateInfo fbInfo{};
+		fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fbInfo.renderPass = conversionRenderPass->getVkRenderPass();
+		fbInfo.attachmentCount = 1;
+		fbInfo.pAttachments = &brdfImageView;
+		fbInfo.width = lutSize;
+		fbInfo.height = lutSize;
+		fbInfo.layers = 1;
+		vkCreateFramebuffer(devices->getLogicalDevice(), &fbInfo, nullptr, &lutFramebuffer);
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 0;
+		layoutInfo.pBindings = nullptr;
+		VkDescriptorSetLayout nullDescriptorSetLayout;
+		vkCreateDescriptorSetLayout(devices->getLogicalDevice(), &layoutInfo, nullptr, &nullDescriptorSetLayout);
+
+		auto brdfPipelineLayout = std::make_unique<VulkanPipelineLayout>();
+		brdfPipelineLayout->create(devices->getLogicalDevice(), nullDescriptorSetLayout);
+
+		auto brdfPipeline = std::make_unique<VulkanGraphicsPipeline>();
+		brdfPipeline->createForLutGeneration(
+			devices->getLogicalDevice(),
+			brdfPipelineLayout->getVkPipelineLayout(),
+			conversionRenderPass->getVkRenderPass(),
+			"shaders/brdf.vert.spv", // A simple passthrough/fullscreen triangle shader
+			"shaders/brdf.frag.spv"
+		);
+
+
+		// 4. Record commands to render a single fullscreen quad
+		VkCommandBuffer cmd = VulkanCommandBuffers::beginSingleTimeCommands(devices->getLogicalDevice(), commandPool->getVkCommandPool());
+
+		// Transition layout to be a render target
+		VulkanImage::transitionImageLayout(devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), brdfLut->getImage(), VK_FORMAT_R16G16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		// Begin render pass, bind pipeline, draw 1 triangle (3 vertices), end render pass
+		
+		VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+
+		VkRenderPassBeginInfo renderPassBeginInfo{};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.renderPass = conversionRenderPass->getVkRenderPass();
+		renderPassBeginInfo.framebuffer = lutFramebuffer;
+		renderPassBeginInfo.renderArea.extent.width = lutSize;
+		renderPassBeginInfo.renderArea.extent.height = lutSize;
+		renderPassBeginInfo.renderArea.offset = { 0, 0 };
+		renderPassBeginInfo.clearValueCount = 1;
+		renderPassBeginInfo.pClearValues = &clearColor;
+
+		vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport = { 0.0f, 0.0f, (float)lutSize, (float)lutSize, 0.0f, 1.0f };
+		VkRect2D scissor = { {0, 0}, {lutSize, lutSize} };
+		vkCmdSetViewport(cmd, 0, 1, &viewport);
+		vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, brdfPipeline->getVkPipeline());
+
+		vkCmdDraw(cmd, 3, 1, 0, 0); // Draw 1 triangle (3 vertices)
+		vkCmdEndRenderPass(cmd);
+
+		VulkanCommandBuffers::endSingleTimeCommands(cmd, devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool());
+		vkQueueWaitIdle(devices->getGraphicsQueue());
+
+		// Transition layout to be a shader resource for sampling
+		VulkanImage::transitionImageLayout(
+			devices->getLogicalDevice(),
+			devices->getGraphicsQueue(),
+			commandPool->getVkCommandPool(),
+			brdfLut->getImage(),
+			VK_FORMAT_R16G16_SFLOAT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		);
+
+		// 5. Cleanup
+		vkDestroyFramebuffer(devices->getLogicalDevice(), lutFramebuffer, nullptr);
+
+		vkDestroyDescriptorSetLayout(devices->getLogicalDevice(), nullDescriptorSetLayout, nullptr);
+
+		brdfPipeline->destroy();
+		brdfPipeline.reset();
+
+		brdfPipelineLayout->destroy();
+		brdfPipelineLayout.reset();
+
+		conversionRenderPass->destroy();
+		conversionRenderPass.reset();
+	}
 
 	void loadCubeModel() {
 		// A cube has 6 faces, each with 2 triangles, for a total of 36 vertices.
@@ -984,6 +1500,7 @@ private:
 			verticesForBuffer
 		);
 	}
+
 };
 
 int main()

@@ -28,18 +28,22 @@ void VulkanDescriptorPool::create(VkDevice device, uint32_t maxFramesInFlight, u
 	poolSizes[1].descriptorCount = objectCount * maxFramesInFlight;
 
 	// --- COMBINED IMAGE SAMPLERS ---
-	// PBR Materials: (Albedo + Normal + ORM + Displacement) * objectCount * frames
-	// Skybox: (Cubemap) * frames
-	// Conversion: (2D HDR) * 1
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[2].descriptorCount = (objectCount * 4 + 1) * maxFramesInFlight + 1;
+	// PBR Materials: 4 base textures + 3 IBL textures
+	uint32_t pbrMaterialSamplers = objectCount * 7 * maxFramesInFlight;
+	uint32_t skyboxSamplers = 1 * maxFramesInFlight;
+	// 3 one-time conversion passes, each use one sampler description set.
+	// HDR->Skybox, Skybox->Irradiance, Skybox->Prefilter
+	uint32_t conversionSamplers = 3;
+
+	poolSizes[2].descriptorCount = pbrMaterialSamplers + skyboxSamplers + conversionSamplers;
 
 
 	// --- Total Set Count ---
 	// This calculation you had was correct.
 	uint32_t pbrSets = maxFramesInFlight * objectCount;
 	uint32_t skyboxSets = maxFramesInFlight;
-	uint32_t conversionSets = 1;
+	uint32_t conversionSets = 3;
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
