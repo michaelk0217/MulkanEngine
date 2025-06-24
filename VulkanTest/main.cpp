@@ -14,15 +14,15 @@
 #include <map>
 #include <algorithm>
 
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "VulkanGlobals.h"
+#include <imgui.h>
 
+#include "VulkanGlobals.h"
 #include "Window.h"
 #include "VulkanInstance.h"
 #include "VulkanSurface.h"
@@ -51,6 +51,7 @@
 #include "Material.h"
 #include "Lights.h"
 #include "AssetManager.h"
+#include "ImGuiManager.h"
 
 
 const std::vector<const char*> validationLayers = {
@@ -163,11 +164,15 @@ private:
 	TessellationUBO tessUboData; // CPU SIDE DATA
 	// -------------------------------------
 
+	// IMGUI
+	std::unique_ptr<ImGuiManager> m_imguiManager;
+	std::unique_ptr<VulkanFramebuffers> m_imguiFramebuffers;
+
 	void initWindow()
 	{
 
-		const uint32_t WIDTH_CONST = 3840;
-		const uint32_t HEIGHT_CONST = 2160;
+		const uint32_t WIDTH_CONST = 2560;
+		const uint32_t HEIGHT_CONST = 1440;
 		const std::string TITLE = "Mulkan Engine";
 		try
 		{
@@ -215,8 +220,12 @@ private:
 		m_pbrDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
 		m_pbrDescriptorSetLayout->create(devices->getLogicalDevice());
 
+		VkPushConstantRange pbrPipelinePushConstantRange{};
+		pbrPipelinePushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		pbrPipelinePushConstantRange.offset = 0;
+		pbrPipelinePushConstantRange.size = sizeof(uint32_t);
 		m_pbrPipelineLayout = std::make_unique<VulkanPipelineLayout>();
-		m_pbrPipelineLayout->create(devices->getLogicalDevice(), m_pbrDescriptorSetLayout->getVkDescriptorSetLayout());
+		m_pbrPipelineLayout->create(devices->getLogicalDevice(), m_pbrDescriptorSetLayout->getVkDescriptorSetLayout(), 1u, &pbrPipelinePushConstantRange);
 
 		m_skyboxDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
 		m_skyboxDescriptorSetLayout->createForSkybox(devices->getLogicalDevice());
@@ -280,7 +289,7 @@ private:
 
 		loadAssetsAndCreateRenderables();
 		
-		descriptorPool = std::make_unique<VulkanDescriptorPool>(); // load descriptorsets after populating renderableObjects
+		descriptorPool = std::make_unique<VulkanDescriptorPool>(); // load descriptor pool after populating renderableObjects
 		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(renderableObjects.size()));
 
 		auto hdrSourceTexture = std::make_unique <VulkanTexture>();
@@ -360,6 +369,17 @@ private:
 		syncObjects = std::make_unique<VulkanSyncObjects>();
 		syncObjects->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(swapChainObj->getImageViews().size()));
 
+		m_imguiManager = std::make_unique<ImGuiManager>(
+			*window,
+			*instance,
+			*devices,
+			*surface,
+			*swapChainObj,
+			*commandPool
+		);
+		m_imguiFramebuffers = std::make_unique<VulkanFramebuffers>();
+		m_imguiFramebuffers->createForImGui(devices->getLogicalDevice(), swapChainObj->getImageViews(), m_imguiManager->getRenderPass(), swapChainObj->getExtent());
+
 		renderer = std::make_unique<VulkanRenderer>(
 			*devices,            // Pass by reference
 			*swapChainObj,
@@ -406,8 +426,17 @@ private:
 
 			window->pollEvents();
 
-			camera->processKeyboard(window->getKeys(), deltaTime);
-			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
+			ImGuiIO& io = ImGui::GetIO();
+			if (!io.WantCaptureKeyboard)
+			{
+				camera->processKeyboard(window->getKeys(), deltaTime);
+			}
+			if (!io.WantCaptureMouse)
+			{
+				camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
+			}
+			m_imguiManager->newFrame();
+			m_imguiManager->buildUI(m_WireframeMode, tessUboData);
 
 			 // Safely check key states with bounds validation
 			const auto& keys = window->getKeys();
@@ -462,22 +491,22 @@ private:
 				down_KeyPressed = false;
 			}
 
-			 if (window->getKeys()[GLFW_KEY_M] && !m_M_KeyPressed)
-			 {
-				 if (m_GraphicsPipelineWireframe)
-				 {
+			if (window->getKeys()[GLFW_KEY_M] && !m_M_KeyPressed)
+			{
+				if (m_GraphicsPipelineWireframe)
+				{
 
-					 m_WireframeMode = !m_WireframeMode;
+					m_WireframeMode = !m_WireframeMode;
 					 //printf("Wireframe mode toggled: %b\n", m_WireframeMode);
 
-				 }
-				 m_M_KeyPressed = true;
-			 }
-			 if (!window->getKeys()[GLFW_KEY_M]) 
-			 {
-				 m_M_KeyPressed = false;
-			 }
-
+				}
+				m_M_KeyPressed = true;
+			}
+			if (!window->getKeys()[GLFW_KEY_M]) 
+			{
+				m_M_KeyPressed = false;
+			}
+			
 
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
@@ -508,11 +537,13 @@ private:
 			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
 			renderPacket.skyboxData = skyboxDataPacket;
 
-			renderer->drawFrame(
+			/*renderer->drawFrame(
 				renderPacket,
 				framebufferResized,
 				[this]() { return this->recreateSwapChain(); }
-			);
+			);*/
+
+			drawFrame(renderPacket);
 		}
 
 		if (devices->isInitialized())
@@ -521,18 +552,123 @@ private:
 		}
 	}
 
+	void drawFrame(RenderPacket& renderPacket)
+	{
+		uint32_t frameIndex = renderer->getCurrentFrame();
+		VkFence currentFrameFence = syncObjects->getInFlightFence(frameIndex);
+		vkWaitForFences(devices->getLogicalDevice(), 1, &currentFrameFence, VK_TRUE, UINT64_MAX);
+
+		uint32_t imageIndex;
+		VkResult result = vkAcquireNextImageKHR(
+			devices->getLogicalDevice(),
+			swapChainObj->getSwapChain(),
+			UINT64_MAX,
+			syncObjects->getImageAvailableSemaphore(frameIndex),
+			VK_NULL_HANDLE,
+			&imageIndex
+		);
+
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || framebufferResized)
+		{
+			framebufferResized = false;
+			recreateSwapChain();
+			return; // continue; (should restart the main loop)
+		} 
+		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+		{
+			throw std::runtime_error("failed to acquire swap chain image!");
+		}
+
+		vkResetFences(devices->getLogicalDevice(), 1, &currentFrameFence);
+
+		VkCommandBuffer cmd = commandBuffers->getCommandBuffer(frameIndex);
+		vkResetCommandBuffer(cmd, 0);
+
+		// --- Begin Recording ---
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("failed to begin recording command buffer!");
+		}
+
+		// SCENE ARTIST (draw scene)
+		renderer->recordSceneCommands(
+			cmd, 
+			renderPacket, 
+			frameIndex, 
+			swapChainFramebuffers->getFramebuffer(imageIndex)
+		);
+		// UI ARTIST (draws imgui UI)
+		m_imguiManager->render(
+			cmd,
+			m_imguiFramebuffers->getFramebuffer(imageIndex),
+			swapChainObj->getExtent()
+		);
+
+		if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to record command buffer!");
+		}
+		// --- Finished recording ---
+
+		// -- Submit to GPU --
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		VkSemaphore waitSemaphores[] = { syncObjects->getImageAvailableSemaphore(frameIndex) };
+		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &cmd;
+		VkSemaphore signalSemaphores[] = { syncObjects->getRenderFinishedSemaphore(frameIndex) };
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		if (vkQueueSubmit(devices->getGraphicsQueue(), 1, &submitInfo, currentFrameFence) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit draw command buffer!");
+		}
+
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphores; // Wait on the semaphore we just signaled
+
+		VkSwapchainKHR swapChains[] = { swapChainObj->getSwapChain() };
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = swapChains;
+		presentInfo.pImageIndices = &imageIndex;
+
+		result = vkQueuePresentKHR(devices->getPresentQueue(), &presentInfo);
+
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+			framebufferResized = false;
+			recreateSwapChain();
+		}
+		else if (result != VK_SUCCESS) {
+			throw std::runtime_error("failed to present swap chain image!");
+		}
+
+		renderer->advanceFrame();
+	}
+
 	void cleanupSwapChain()
 	{
 
 		depthResourceObj->destroy();
 
 		swapChainFramebuffers->destroy();
+		m_imguiFramebuffers->destroy();
 
 		swapChainObj->destroy();
 	}
 
 	void cleanup()
 	{
+		vkDeviceWaitIdle(devices->getLogicalDevice());
+
+		m_imguiManager.reset();
+
 		if (camera) camera.reset();
 
 		cleanupSwapChain();
@@ -635,6 +771,7 @@ private:
 		swapChainObj->create(devices->getPhysicalDevice(), devices->getLogicalDevice(), surface->getVkSurface(), window->getGlfwWindow());
 		depthResourceObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), swapChainObj->getExtent());
 		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
+		m_imguiFramebuffers->createForImGui(devices->getLogicalDevice(), swapChainObj->getImageViews(), m_imguiManager->getRenderPass(), swapChainObj->getExtent());
 	}
 
 	// Update Uniform Buffers here
@@ -673,17 +810,7 @@ private:
 		MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
 		MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
 		MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-
-		SceneObjectDefinition RockBall{};
-		RockBall.name = "Rock_PBR_Preview";
-		RockBall.meshPath = "";
-		RockBall.materialName = "Rock061_4K";
-		RockBall.albedoPath = "textures/Rock061_4K/Rock061_4K-PNG_Color.png";
-		RockBall.normalPath = "textures/Rock061_4K/Rock061_4K-PNG_NormalDX.png";
-		RockBall.ormPath = "textures/Rock061_4K/Rock061_4K-PNG_ORM.png";
-		RockBall.displacementPath = "textures/Rock061_4K/Rock061_4K-PNG_Displacement.png";
-		RockBall.position = glm::vec3(10.0, 0.0, 0.0);
-		RockBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		MetalBall.useOrm = true;
 
 		SceneObjectDefinition TileFloor;
 		TileFloor.name = "TileFloor";
@@ -695,6 +822,7 @@ private:
 		TileFloor.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
 		TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
 		TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
+		TileFloor.useOrm = true;
 
 		SceneObjectDefinition TileBall;
 		TileBall.name = "TileBall";
@@ -706,6 +834,7 @@ private:
 		TileBall.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
 		TileBall.position = glm::vec3(30.0, 0.0, 0.0);
 		TileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		TileBall.useOrm = true;
 
 		SceneObjectDefinition MetalBall2{};
 		MetalBall2.name = "Metal2_PBR_Preview";
@@ -717,16 +846,55 @@ private:
 		MetalBall2.displacementPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Displacement.png";
 		MetalBall2.position = glm::vec3(20.0, 0.0, 0.0);
 		MetalBall2.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		MetalBall2.useOrm = true;
 
+		SceneObjectDefinition GoldTileBall{};
+		GoldTileBall.name = "GoldTile_PBR_Preview";
+		GoldTileBall.meshPath = "";
+		GoldTileBall.materialName = "MetalTiles03_4K";
+		GoldTileBall.albedoPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_BaseColor.png";
+		GoldTileBall.normalPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Normal.png";
+		GoldTileBall.ormPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_ORM.png";
+		GoldTileBall.displacementPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Height.png";
+		GoldTileBall.position = glm::vec3(10.0, 0.0, 0.0);
+		GoldTileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		GoldTileBall.useOrm = true;
+
+		SceneObjectDefinition MarbleBall{};
+		MarbleBall.name = "MarbleBall_PBR_Preview";
+		MarbleBall.meshPath = "";
+		MarbleBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		MarbleBall.materialName = "Marble04_2K";
+		MarbleBall.albedoPath = "textures/Marble04_2K/Marble04_2K_BaseColor.png";
+		MarbleBall.normalPath = "textures/Marble04_2K/Marble04_2K_Normal.png";
+		MarbleBall.roughnessPath = "textures/Marble04_2K/Marble04_2K_Roughness.png";
+		//MarbleBall.displacementPath = "textures/Marble04_2K/Marble04_2K_Height.png";
+		MarbleBall.useOrm = false;
+		MarbleBall.position = glm::vec3(-10.0, 0.0, 0.0);
+
+		SceneObjectDefinition GroundBall{};
+		GroundBall.name = "GroundBall_PBR_Preview";
+		GroundBall.meshPath = "";
+		GroundBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		GroundBall.materialName = "Ground078_4K";
+		GroundBall.albedoPath = "textures/Ground078_4K/Ground078_4K-PNG_Color.png";
+		GroundBall.normalPath = "textures/Ground078_4K/Ground078_4K-PNG_NormalDX.png";
+		GroundBall.aoPath = "textures/Ground078_4K/Ground078_4K-PNG_AmbientOcclusion.png";
+		GroundBall.roughnessPath = "textures/Ground078_4K/Ground078_4K-PNG_Roughness.png";
+		GroundBall.displacementPath = "textures/Ground078_4K/Ground078_4K-PNG_Displacement.png";
+		GroundBall.useOrm = false;
+		GroundBall.position = glm::vec3(0.0, 0.0, 0.0);
 
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			MetalBall,
-			RockBall,
+			//MetalBall,
+
 			//TileFloor,
 			TileBall,
-			MetalBall2
-
+			MetalBall2,
+			GoldTileBall,
+			MarbleBall,
+			GroundBall
 		};
 
 		// The entire loading process is now a simple loop.

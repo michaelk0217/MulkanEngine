@@ -15,10 +15,10 @@ layout(binding = 1) uniform ObjectUbo { // Per-object data
     mat4 model;
 } objectData; // The instance name is 'objectData'
 
-layout(binding = 6) uniform sampler2D displacementMap;
+layout(binding = 9) uniform sampler2D displacementMap;
 
 // FIX: Added the 'uniform' keyword
-layout(binding = 7) uniform TessellationUBO {
+layout(binding = 10) uniform TessellationUBO {
     float tessellationLevel;
     float displacementScale;
 } tessUbo;

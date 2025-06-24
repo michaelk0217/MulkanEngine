@@ -18,7 +18,14 @@ struct Material
 	std::shared_ptr<VulkanTexture> albedoMap; // Base color
 	std::shared_ptr<VulkanTexture> normalMap; // Surface detail
 	std::shared_ptr<VulkanTexture> ormMap; // R: Occlusion, G: Roughness, B: Metallic
+
+	std::shared_ptr<VulkanTexture> aoMap;
+	std::shared_ptr<VulkanTexture> roughnessMap;
+	std::shared_ptr<VulkanTexture> metallnessMap;
+
 	std::shared_ptr<VulkanTexture> displacementMap;
+
+	bool useOrm = true;
 
 	std::vector<VkDescriptorSet> frameSpecificDescriptorSets;
 

@@ -55,48 +55,70 @@ void VulkanDescriptorSetLayout::create(VkDevice vkdevice)
 	ormSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	ormSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+	VkDescriptorSetLayoutBinding aoSamplerLayoutBinding{};
+	aoSamplerLayoutBinding.binding = 6;
+	aoSamplerLayoutBinding.descriptorCount = 1;
+	aoSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	aoSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	aoSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkDescriptorSetLayoutBinding roughnessSamplerLayoutBinding{};
+	roughnessSamplerLayoutBinding.binding = 7;
+	roughnessSamplerLayoutBinding.descriptorCount = 1;
+	roughnessSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	roughnessSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	roughnessSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkDescriptorSetLayoutBinding metallnessSamplerLayoutBinding{};
+	metallnessSamplerLayoutBinding.binding = 8;
+	metallnessSamplerLayoutBinding.descriptorCount = 1;
+	metallnessSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	metallnessSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	metallnessSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
 	VkDescriptorSetLayoutBinding displacementSamplerLayoutBinding{};
-	displacementSamplerLayoutBinding.binding = 6;
+	displacementSamplerLayoutBinding.binding = 9;
 	displacementSamplerLayoutBinding.descriptorCount = 1;
 	displacementSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	displacementSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	displacementSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 
 	VkDescriptorSetLayoutBinding tessUboLayoutBinding{};
-	tessUboLayoutBinding.binding = 7;
+	tessUboLayoutBinding.binding = 10;
 	tessUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	tessUboLayoutBinding.descriptorCount = 1;
 	tessUboLayoutBinding.pImmutableSamplers = nullptr;
 	tessUboLayoutBinding.stageFlags = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 
 	VkDescriptorSetLayoutBinding irradianceSamplerLayoutBinding{};
-	irradianceSamplerLayoutBinding.binding = 8;
+	irradianceSamplerLayoutBinding.binding = 11;
 	irradianceSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	irradianceSamplerLayoutBinding.descriptorCount = 1;
 	irradianceSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	irradianceSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding prefilterSamplerLayoutBinding{};
-	prefilterSamplerLayoutBinding.binding = 9;
+	prefilterSamplerLayoutBinding.binding = 12;
 	prefilterSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	prefilterSamplerLayoutBinding.descriptorCount = 1;
 	prefilterSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	prefilterSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding brdfLutSamplerLayoutBinding{};
-	brdfLutSamplerLayoutBinding.binding = 10;
+	brdfLutSamplerLayoutBinding.binding = 13;
 	brdfLutSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	brdfLutSamplerLayoutBinding.descriptorCount = 1;
 	brdfLutSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	brdfLutSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 11> bindings = { 
+	std::array<VkDescriptorSetLayoutBinding, 14> bindings = { 
 		frameUboLayoutBinding, 
 		objectUboLayoutBinding,
 		lightingUboLayoutBinding,
 		albedoSamplerLayoutBinding,
 		normalSamplerLayoutBinding,
 		ormSamplerLayoutBinding,
+		aoSamplerLayoutBinding,
+		metallnessSamplerLayoutBinding,
+		roughnessSamplerLayoutBinding,
 		displacementSamplerLayoutBinding,
 		tessUboLayoutBinding,
 		irradianceSamplerLayoutBinding,

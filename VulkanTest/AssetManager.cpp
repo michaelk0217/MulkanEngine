@@ -147,8 +147,23 @@ std::shared_ptr<Material> AssetManager::getMaterial(const SceneObjectDefinition&
     newMaterial->albedoMap = loadTexture(def.albedoPath);
     newMaterial->normalMap = loadTexture(def.normalPath, "textures/default_normal.png");
 
-    newMaterial->ormMap = loadTexture(def.ormPath, "textures/default_orm.png");
-    newMaterial->displacementMap = loadTexture(def.displacementPath, "textures/default_orm.png"); // Use a neutral default for displacement
+    if (def.useOrm)
+    {
+        newMaterial->ormMap = loadTexture(def.ormPath, "textures/default_orm.png");
+        newMaterial->aoMap = loadTexture("textures/defaults/default_ao.png", "textures/defaults/default_ao.png");
+        newMaterial->roughnessMap = loadTexture("textures/defaults/default_roughness.png", "textures/defaults/default_roughness.png");
+        newMaterial->metallnessMap = loadTexture("textures/defaults/default_metalness.png", "textures/defaults/default_metalness.png");
+    }
+    else
+    {
+        newMaterial->ormMap = loadTexture("textures/default_orm.png", "textures/default_orm.png");
+        newMaterial->aoMap = loadTexture(def.aoPath, "textures/defaults/default_ao.png");
+        newMaterial->roughnessMap = loadTexture(def.roughnessPath, "textures/defaults/default_roughness.png");
+        newMaterial->metallnessMap = loadTexture(def.metallnessPath, "textures/defaults/default_metalness.png");
+    }
+
+    
+    newMaterial->displacementMap = loadTexture(def.displacementPath, "textures/default_displacement.png"); // Use a neutral default for displacement
 
     m_Materials[def.materialName] = newMaterial;
     return newMaterial;

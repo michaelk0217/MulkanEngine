@@ -11,7 +11,7 @@ layout(location = 1) in vec2 inTexCoord[];
 layout(location = 0) out vec3 outNormal_TES[];
 layout(location = 1) out vec2 outTexCoord_TES[];
 
-layout(binding = 7) uniform TessellationUBO {
+layout(binding = 10) uniform TessellationUBO {
     float tessellationLevel;
     float displacementScale;
 } tessUbo;

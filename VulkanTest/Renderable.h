@@ -25,7 +25,12 @@ struct SceneObjectDefinition
     std::string albedoPath;
     std::string normalPath;
     std::string ormPath;
+    std::string aoPath;
+    std::string roughnessPath;
+    std::string metallnessPath;
     std::string displacementPath;
+
+    bool useOrm = true;
 
     glm::vec3 position = glm::vec3(0.0f);
     glm::vec3 rotationAngles = glm::vec3(0.0f); // in degrees

@@ -12,6 +12,7 @@ public:
 	~VulkanFramebuffers();
 
 	void create(VkDevice vkdevice, const std::vector<VkImageView>& swapChainImageViews, VkImageView depthImageView, VkRenderPass renderPass, VkExtent2D swapChainExtent);
+	void createForImGui(VkDevice vkdevice, const std::vector<VkImageView>& swapChainImageViews, VkRenderPass renderPass, VkExtent2D swapChainExtent);
 	void destroy();
 
 	VkFramebuffer getFramebuffer(uint32_t index) const;

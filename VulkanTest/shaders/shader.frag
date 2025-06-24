@@ -20,11 +20,18 @@ layout(binding = 3) uniform sampler2D albedoMap;
 layout(binding = 4) uniform sampler2D normalMap;
 layout(binding = 5) uniform sampler2D ormMap;
 
-// IBL SAMPLERS
-layout(binding = 8) uniform samplerCube irradianceMap;
-layout(binding = 9) uniform samplerCube prefilterMap;
-layout(binding = 10) uniform sampler2D brdfLut;
+layout(binding = 6) uniform sampler2D aoMap;
+layout(binding = 7) uniform sampler2D roughnessMap;
+layout(binding = 8) uniform sampler2D metallnessMap;
 
+// IBL SAMPLERS
+layout(binding = 11) uniform samplerCube irradianceMap;
+layout(binding = 12) uniform samplerCube prefilterMap;
+layout(binding = 13) uniform sampler2D brdfLut;
+
+layout(push_constant) uniform PushConstants {
+    uint useOrm;
+} pushConstants;
 
 const float PI = 3.14159265359;
 
@@ -75,9 +82,28 @@ void main() {
     // --- Material Property Setup ---
     vec3 albedo = texture(albedoMap, inTexCoord).rgb;
     vec3 ormData = texture(ormMap, inTexCoord).rgb;
-    float ao = ormData.r;
-    float roughness = ormData.g;
-    float metallic = ormData.b;
+    // float ao = ormData.r;
+    // float roughness = ormData.g;
+    // float metallic = ormData.b;
+
+    float ao, roughness, metallic;
+
+
+    if (pushConstants.useOrm == 1)
+    {
+        ao = ormData.r;
+        roughness = ormData.g;
+        metallic = ormData.b;
+
+    }
+    else
+    {
+        ao = texture(aoMap, inTexCoord).r;
+        roughness = texture(roughnessMap, inTexCoord).r;
+        metallic = texture(metallnessMap, inTexCoord).r;
+    }
+
+
     vec3 N = normalize(inNormalWorld); // The surface normal
     vec3 V = normalize(sceneUbo.viewPos.xyz - inFragPosWorld); // The view vector
 
