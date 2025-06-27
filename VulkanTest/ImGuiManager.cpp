@@ -4,6 +4,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include <glm/glm.hpp>
+
 #include "Window.h"
 #include "VulkanDevice.h"
 #include "VulkanSurface.h"
@@ -12,6 +14,7 @@
 #include "VulkanRenderPass.h"
 #include "VulkanUniformBuffers.h"
 #include "VulkanGlobals.h"
+#include "Renderable.h"
 
 ImGuiManager::ImGuiManager(
 	Window& window, 
@@ -99,14 +102,12 @@ void ImGuiManager::newFrame()
     ImGui::NewFrame();
 }
 
-void ImGuiManager::buildUI(bool& wireframeMode, TessellationUBO& tessUboData)
+
+
+void ImGuiManager::buildUI(SceneDebugContextPacket& sceneDebugContextPacket)
 {
-    ImGui::Begin("Engine Controls");
-    ImGui::Checkbox("Wireframe Mode", &wireframeMode);
-    //ImGui::Text("Tessellation Level: %.1f", tessUboData.tessellationLevel);
-    ImGui::SliderFloat("Tessellation Level", &tessUboData.tessellationLevel, 1.0f, 64.0f);
-    ImGui::SliderFloat("Displacement Scale", &tessUboData.displacementScale, 0.0f, 0.2f);
-    ImGui::End();
+    drawControlPanel(sceneDebugContextPacket);
+    drawLightingPanel(sceneDebugContextPacket);
 }
 
 void ImGuiManager::render(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer, VkExtent2D swapChainExtent)
@@ -189,4 +190,29 @@ void ImGuiManager::initRenderPass(VkFormat swapChainFormat)
     if (vkCreateRenderPass(m_device.getLogicalDevice(), &info, nullptr, &m_renderPass) != VK_SUCCESS) { // You might need a way to set the handle in your class
         throw std::runtime_error("Could not create Dear ImGui's render pass");
     }
+}
+
+void ImGuiManager::drawControlPanel(SceneDebugContextPacket& sceneDebugContextPacket)
+{
+    ImGui::Begin("Engine Controls");
+    ImGui::Checkbox("Wireframe Mode", &sceneDebugContextPacket.wireframeMode);
+    //ImGui::Text("Tessellation Level: %.1f", tessUboData.tessellationLevel);
+    ImGui::SliderFloat("Tessellation Level", &sceneDebugContextPacket.tessellationUbo.tessellationLevel, 1.0f, 64.0f);
+    ImGui::SliderFloat("Displacement Scale", &sceneDebugContextPacket.tessellationUbo.displacementScale, 0.0f, 0.2f);
+    ImGui::End();
+}
+
+void ImGuiManager::drawLightingPanel(SceneDebugContextPacket& sceneDebugContextPacket)
+{
+    ImGui::Begin("Lighting Controls");
+    ImGui::Text("Directional Light");
+    // We pass a pointer to the start of the data and ImGui treats it as an array of 3 floats
+    ImGui::DragFloat3("Direction", &sceneDebugContextPacket.sceneLighingUbo.dirLight.direction.x, 0.01f);
+    // Normalize the direction after modification
+    sceneDebugContextPacket.sceneLighingUbo.dirLight.direction = glm::normalize(sceneDebugContextPacket.sceneLighingUbo.dirLight.direction);
+
+    ImGui::ColorEdit3("Color", &sceneDebugContextPacket.sceneLighingUbo.dirLight.color.r);
+    ImGui::DragFloat("Intensity", &sceneDebugContextPacket.sceneLighingUbo.dirLight.color.w, 0.1f, 0.0f, 100.0f); // 'w' is intensity
+
+    ImGui::End();
 }

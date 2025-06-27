@@ -433,7 +433,7 @@ private:
 				processInput(deltaTime);
 			}
 			m_imguiManager->newFrame();
-			m_imguiManager->buildUI(m_WireframeMode, tessUboData);
+			//m_imguiManager->buildUI(m_WireframeMode, tessUboData);
 
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
@@ -464,6 +464,16 @@ private:
 			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
 			renderPacket.skyboxData = skyboxDataPacket;
 
+			SceneDebugContextPacket debugContextPacket
+			{
+				m_WireframeMode,
+				tessUboData,
+				sceneLights,
+				camera.get(),
+				deltaTime
+			};
+
+			m_imguiManager->buildUI(debugContextPacket);
 			drawFrame(renderPacket);
 			window->endFrame();
 		}

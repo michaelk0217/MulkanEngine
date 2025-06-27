@@ -129,11 +129,11 @@ void Window::staticKeyCallback(GLFWwindow* window, int key, int scancode, int ac
 	if (key >= 0 && key < 1024) {
 		if (action == GLFW_PRESS) {
 			thisWindow->keys[key] = true;
-			 printf("Pressed: %d\n", key);
+			 //printf("Pressed: %d\n", key);
 		}
 		else if (action == GLFW_RELEASE) {
 			thisWindow->keys[key] = false;
-			 printf("Released: %d\n", key);
+			 //printf("Released: %d\n", key);
 		}
 	}
 }

@@ -9,7 +9,8 @@ class VulkanDevice;
 class VulkanSurface;
 class VulkanSwapChain;
 class VulkanCommandPool;
-struct TessellationUBO;
+//struct TessellationUBO;
+struct SceneDebugContextPacket;
 
 class ImGuiManager
 {
@@ -28,7 +29,8 @@ public:
 	ImGuiManager& operator=(const ImGuiManager&) = delete;
 
 	void newFrame();
-	void buildUI(bool& wireframeMode, TessellationUBO& tessUboData); // passing state
+	//void buildUI(bool& wireframeMode, TessellationUBO& tessUboData); // passing state
+	void buildUI(SceneDebugContextPacket& sceneDebugContextPacket);
 	//void render(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer);
 	void render(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer, VkExtent2D swapChainExtent);
 
@@ -42,5 +44,9 @@ private:
 	VulkanDevice& m_device;
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 	VkRenderPass m_renderPass = VK_NULL_HANDLE;
+
+	void drawControlPanel(SceneDebugContextPacket& sceneDebugContextPacket);
+	void drawLightingPanel(SceneDebugContextPacket& sceneDebugContextPacket);
+
 };
 

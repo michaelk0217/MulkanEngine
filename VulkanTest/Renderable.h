@@ -9,10 +9,10 @@
 #include <vulkan/vulkan.h>
 
 #include "VulkanGlobals.h"
-#include "VulkanVertexBuffer.h"
-#include "VulkanIndexBuffer.h"
-#include "VulkanTexture.h"
-#include "VulkanUniformBuffers.h"
+//#include "VulkanVertexBuffer.h"
+//#include "VulkanIndexBuffer.h"
+//#include "VulkanTexture.h"
+//#include "VulkanUniformBuffers.h"
 #include "Material.h"
 #include "ModelLoader.h"
 
@@ -43,6 +43,7 @@ struct SceneObjectDefinition
 class VulkanVertexBuffer;
 class VulkanIndexBuffer;
 class VulkanTexture;
+class Camera;
 
 struct RenderableObject
 {
@@ -77,4 +78,14 @@ struct RenderPacket {
 
     std::optional<SkyboxData> skyboxData;
     // shadow pass for future
+};
+
+struct TessellationUBO;
+struct SceneLightingUBO;
+struct SceneDebugContextPacket {
+    bool& wireframeMode;
+    TessellationUBO& tessellationUbo;
+    SceneLightingUBO& sceneLighingUbo;
+    Camera* mainCamera = nullptr;
+    float deltaTime = 0.0f;
 };
