@@ -37,13 +37,21 @@ public:
 
 	void setAppFramebufferResizeCallback(AppFramebufferResizeCallback callback);
 	
+	void endFrame();
+	bool isKeyPressed(int key) const;
+	bool isKeyTriggered(int key) const;
 
+	bool isMouseButtonPressed(int button) const;
+	bool isMouseButtonTriggered(int button)const;
 
 private:
 	GLFWwindow* glfwWindow;
 	std::string windowTitle;
 
 	bool keys[1024];
+	bool lastKeys[1024];
+	bool mouseButtons[GLFW_MOUSE_BUTTON_LAST + 1];
+	bool lastMouseButtons[GLFW_MOUSE_BUTTON_LAST + 1];
 
 	GLfloat lastX;
 	GLfloat lastY;
@@ -54,13 +62,11 @@ private:
 	AppFramebufferResizeCallback appResizeCallbackInstance;
 
 	void createCallbacks();
-	//static void handleKeys(GLFWwindow* window, int key, int code, int action, int mode);
-	//static void handleMouse(GLFWwindow* window, double xPos, double yPos);
-	// 
-	// Window's static GLFW callbacks
 	static void staticKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 	static void staticMouseCallback(GLFWwindow* window, double xPos, double yPos);
-	// New static GLFW framebuffer resize callback for the Window class
 	static void staticFramebufferResizeCallback(GLFWwindow* glfwWnd, int width, int height);
+
+	static void staticMouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+
 };
 

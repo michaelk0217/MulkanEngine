@@ -103,8 +103,9 @@ void ImGuiManager::buildUI(bool& wireframeMode, TessellationUBO& tessUboData)
 {
     ImGui::Begin("Engine Controls");
     ImGui::Checkbox("Wireframe Mode", &wireframeMode);
-    ImGui::Text("Tessellation Level: %.1f", tessUboData.tessellationLevel);
-    ImGui::SliderFloat("Displacement Scale", &tessUboData.displacementScale, 0.0f, 1.0f);
+    //ImGui::Text("Tessellation Level: %.1f", tessUboData.tessellationLevel);
+    ImGui::SliderFloat("Tessellation Level", &tessUboData.tessellationLevel, 1.0f, 64.0f);
+    ImGui::SliderFloat("Displacement Scale", &tessUboData.displacementScale, 0.0f, 0.2f);
     ImGui::End();
 }
 

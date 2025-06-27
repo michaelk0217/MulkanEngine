@@ -11,6 +11,12 @@ Window::Window(int width, int height, const std::string& title) : windowTitle(ti
 	for (int i = 0; i < 1024; ++i)
 	{
 		keys[i] = false;
+		lastKeys[i] = false;
+	}
+	for (int i = 0; i <= GLFW_MOUSE_BUTTON_LAST; ++i)
+	{
+		mouseButtons[i] = false;
+		lastMouseButtons[i] = false;
 	}
 	xChange = 0.0f;
 	yChange = 0.0f;
@@ -109,6 +115,7 @@ void Window::createCallbacks()
 	glfwSetKeyCallback(glfwWindow, Window::staticKeyCallback);
 	glfwSetCursorPosCallback(glfwWindow, Window::staticMouseCallback);
 	glfwSetFramebufferSizeCallback(glfwWindow, Window::staticFramebufferResizeCallback);
+	glfwSetMouseButtonCallback(glfwWindow, Window::staticMouseButtonCallback);
 }
 
 void Window::staticKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -122,11 +129,11 @@ void Window::staticKeyCallback(GLFWwindow* window, int key, int scancode, int ac
 	if (key >= 0 && key < 1024) {
 		if (action == GLFW_PRESS) {
 			thisWindow->keys[key] = true;
-			 //printf("Pressed: %d\n", key); // Keep for debugging if needed
+			 printf("Pressed: %d\n", key);
 		}
 		else if (action == GLFW_RELEASE) {
 			thisWindow->keys[key] = false;
-			 //printf("Released: %d\n", key);
+			 printf("Released: %d\n", key);
 		}
 	}
 }
@@ -151,6 +158,32 @@ void Window::setAppFramebufferResizeCallback(AppFramebufferResizeCallback callba
 	appResizeCallbackInstance = callback;
 }
 
+void Window::endFrame()
+{
+	memcpy(lastKeys, keys, sizeof(keys));
+	memcpy(lastMouseButtons, mouseButtons, sizeof(mouseButtons));
+}
+
+bool Window::isKeyPressed(int key) const
+{
+	return keys[key];
+}
+
+bool Window::isKeyTriggered(int key) const
+{
+	return keys[key] && !lastKeys[key];
+}
+
+bool Window::isMouseButtonPressed(int button) const
+{
+	return mouseButtons[button];
+}
+
+bool Window::isMouseButtonTriggered(int button) const
+{
+	return mouseButtons[button] && !lastMouseButtons[button];
+}
+
 void Window::staticFramebufferResizeCallback(GLFWwindow* glfwWnd, int width, int height) {
 	Window* thisWindow = static_cast<Window*>(glfwGetWindowUserPointer(glfwWnd));
 	if (thisWindow) {
@@ -160,6 +193,24 @@ void Window::staticFramebufferResizeCallback(GLFWwindow* glfwWnd, int width, int
 		// Now, call the application's registered callback, if any
 		if (thisWindow->appResizeCallbackInstance) {
 			thisWindow->appResizeCallbackInstance(width, height);
+		}
+	}
+}
+
+void Window::staticMouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	Window* thisWindow = static_cast<Window*>(glfwGetWindowUserPointer(window));
+	if (!thisWindow) return;
+
+	if (button >= 0 && button <= GLFW_MOUSE_BUTTON_LAST)
+	{
+		if (action == GLFW_PRESS)
+		{
+			thisWindow->mouseButtons[button] = true;
+		}
+		else if (action == GLFW_RELEASE)
+		{
+			thisWindow->mouseButtons[button] = false;
 		}
 	}
 }

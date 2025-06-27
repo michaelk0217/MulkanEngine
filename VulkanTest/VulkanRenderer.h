@@ -44,15 +44,7 @@ public:
 
     uint32_t getCurrentFrame() const { return currentFrame; }
 
-    // The main function to draw a frame
-    // uboDataProvider: A function that returns the UBO for the current frame.
-    // framebufferResized: A reference to the flag in the main application.
-    // recreateSwapChainCallback: A function to call if the swapchain needs recreation from drawFrame.
-    //void drawFrame(
-    //    RenderPacket& packet,
-    //    bool& framebufferResized,
-    //    std::function<void()> recreateSwapChainCallback
-    //);
+
 
     void recordSceneCommands(
         VkCommandBuffer commandBuffer,
@@ -61,19 +53,6 @@ public:
         VkFramebuffer swapChainFramebuffer
     );
 
-
-    //static void recordCommandBuffer(
-    //    VkCommandBuffer commandBuffer,
-    //    uint32_t currentFrameIndex,
-    //    VkRenderPass renderPass,
-    //    VkPipelineLayout pipelineLayout,
-    //    VkPipeline graphicsPipeline,
-    //    VkFramebuffer swapChainFramebuffer,
-    //    VkExtent2D swapChainExtent,
-    //    const std::vector<RenderableObject>& renderables,
-    //    VkDeviceSize dynamicUboAlignment,
-    //    std::optional<SkyboxData> skyboxPacket
-    //);
 
     void advanceFrame() { currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT_RENDERER; }
 

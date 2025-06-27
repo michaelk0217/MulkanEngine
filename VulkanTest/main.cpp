@@ -162,6 +162,8 @@ private:
 	SceneLightingUBO sceneLights{}; // CPU SIDE DATA
 	std::unique_ptr<VulkanUniformBuffers> tessellationUboManager;
 	TessellationUBO tessUboData; // CPU SIDE DATA
+	size_t tessLevelIndex = 0;
+	std::array<float, 5> tessLevelValue{ 1.0f, 4.0f, 8.0f, 16.0f, 64.0f };
 	// -------------------------------------
 
 	// IMGUI
@@ -414,8 +416,7 @@ private:
 		bool m_M_KeyPressed = false;
 		bool up_KeyPressed = false;
 		bool down_KeyPressed = false;
-		size_t tessLevelIndex = 0;
-		std::array<float, 5> tessLevelValue{1.0f, 4.0f, 8.0f, 16.0f, 64.0f};
+		
 
 		while (window && !window->shouldClose())
 		{
@@ -427,86 +428,12 @@ private:
 			window->pollEvents();
 
 			ImGuiIO& io = ImGui::GetIO();
-			if (!io.WantCaptureKeyboard)
+			if (!io.WantCaptureKeyboard && !io.WantCaptureMouse)
 			{
-				camera->processKeyboard(window->getKeys(), deltaTime);
-			}
-			if (!io.WantCaptureMouse)
-			{
-				camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
+				processInput(deltaTime);
 			}
 			m_imguiManager->newFrame();
 			m_imguiManager->buildUI(m_WireframeMode, tessUboData);
-
-			 // Safely check key states with bounds validation
-			const auto& keys = window->getKeys();
-
-			if (keys[GLFW_KEY_UP] && !up_KeyPressed)
-			{
-				if (tessLevelIndex + 1 < tessLevelValue.size())
-				{
-					++tessLevelIndex;
-					try
-					{
-						tessUboData.tessellationLevel = tessLevelValue.at(tessLevelIndex);
-						// Optional: Log for debugging
-						// std::cout << "Tessellation Level: " << tessUboData.tessellationLevel << std::endl;
-					}
-					catch (const std::out_of_range& e)
-					{
-						std::cerr << "Tessellation array access error: " << e.what() << std::endl;
-						tessLevelIndex = 0; // Reset to safe index
-						tessUboData.tessellationLevel = tessLevelValue.at(0);
-					}
-					up_KeyPressed = true;
-				}
-			}
-			if (!keys[GLFW_KEY_UP])
-			{
-				up_KeyPressed = false;
-			}
-
-			if (keys[GLFW_KEY_DOWN] && !down_KeyPressed)
-			{
-				if (tessLevelIndex > 0)
-				{
-					--tessLevelIndex;
-					try
-					{
-						tessUboData.tessellationLevel = tessLevelValue.at(tessLevelIndex);
-						// Optional: Log for debugging
-						// std::cout << "Tessellation Level: " << tessUboData.tessellationLevel << std::endl;
-					}
-					catch (const std::out_of_range& e)
-					{
-						std::cerr << "Tessellation array access error: " << e.what() << std::endl;
-						tessLevelIndex = 0; // Reset to safe index
-						tessUboData.tessellationLevel = tessLevelValue.at(0);
-					}
-					down_KeyPressed = true;
-				}
-			}
-			if (!keys[GLFW_KEY_DOWN])
-			{
-				down_KeyPressed = false;
-			}
-
-			if (window->getKeys()[GLFW_KEY_M] && !m_M_KeyPressed)
-			{
-				if (m_GraphicsPipelineWireframe)
-				{
-
-					m_WireframeMode = !m_WireframeMode;
-					 //printf("Wireframe mode toggled: %b\n", m_WireframeMode);
-
-				}
-				m_M_KeyPressed = true;
-			}
-			if (!window->getKeys()[GLFW_KEY_M]) 
-			{
-				m_M_KeyPressed = false;
-			}
-			
 
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
@@ -537,13 +464,8 @@ private:
 			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
 			renderPacket.skyboxData = skyboxDataPacket;
 
-			/*renderer->drawFrame(
-				renderPacket,
-				framebufferResized,
-				[this]() { return this->recreateSwapChain(); }
-			);*/
-
 			drawFrame(renderPacket);
+			window->endFrame();
 		}
 
 		if (devices->isInitialized())
@@ -652,8 +574,32 @@ private:
 		renderer->advanceFrame();
 	}
 
+	void recreateSwapChain()
+	{
+		window->waitForRestoredSize();
+
+		vkDeviceWaitIdle(devices->getLogicalDevice());
+
+		cleanupSwapChain();
+
+		swapChainObj->create(devices->getPhysicalDevice(), devices->getLogicalDevice(), surface->getVkSurface(), window->getGlfwWindow());
+		depthResourceObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), swapChainObj->getExtent());
+		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
+
+		m_imguiManager = std::make_unique<ImGuiManager>(
+			*window,
+			*instance,
+			*devices,
+			*surface,
+			*swapChainObj,
+			*commandPool
+		);
+		m_imguiFramebuffers->createForImGui(devices->getLogicalDevice(), swapChainObj->getImageViews(), m_imguiManager->getRenderPass(), swapChainObj->getExtent());
+	}
+
 	void cleanupSwapChain()
 	{
+		if (m_imguiManager) m_imguiManager.reset();
 
 		depthResourceObj->destroy();
 
@@ -667,7 +613,7 @@ private:
 	{
 		vkDeviceWaitIdle(devices->getLogicalDevice());
 
-		m_imguiManager.reset();
+		//m_imguiManager.reset();
 
 		if (camera) camera.reset();
 
@@ -760,19 +706,47 @@ private:
 		if (window) window.reset();
 	}
 
-	void recreateSwapChain()
+	void processInput(float deltaTime)
 	{
-		window->waitForRestoredSize();
+		// hold middle mouse button to enable cam movenet (mouse look & wasd movement)
+		if (window->isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE))
+		{
+			camera->processKeyboard(window->getKeys(), deltaTime);
 
-		vkDeviceWaitIdle(devices->getLogicalDevice());
+			glfwSetInputMode(window->getGlfwWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			camera->processMouseMovement(window->getXChange(), window->getYChange(), true);
+		}
+		else
+		{
+			glfwSetInputMode(window->getGlfwWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
 
-		cleanupSwapChain();
+		//// toggle wireframemode
+		//if (window->isKeyTriggered(GLFW_KEY_M))
+		//{
+		//	if (m_GraphicsPipelineWireframe)
+		//	{
+		//		m_WireframeMode = !m_WireframeMode;
+		//	}
+		//}
 
-		swapChainObj->create(devices->getPhysicalDevice(), devices->getLogicalDevice(), surface->getVkSurface(), window->getGlfwWindow());
-		depthResourceObj->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), swapChainObj->getExtent());
-		swapChainFramebuffers->create(devices->getLogicalDevice(), swapChainObj->getImageViews(), depthResourceObj->getDepthImageView(), renderPass->getVkRenderPass(), swapChainObj->getExtent());
-		m_imguiFramebuffers->createForImGui(devices->getLogicalDevice(), swapChainObj->getImageViews(), m_imguiManager->getRenderPass(), swapChainObj->getExtent());
+		//// adjust tessellation
+		//if (window->isKeyTriggered(GLFW_KEY_UP))
+		//{
+		//	if (tessLevelIndex < tessLevelValue.size() - 1)
+		//	{
+		//		tessLevelIndex += 1;
+		//	}
+		//}
+		//if (window->isKeyTriggered(GLFW_KEY_DOWN))
+		//{
+		//	if (tessLevelIndex > 0)
+		//	{
+		//		tessLevelIndex -= 1;
+		//	}
+		//}
 	}
+	
 
 	// Update Uniform Buffers here
 	FrameUniformBufferObject frameUboUpdate()
