@@ -74,7 +74,7 @@ VkSampler VulkanTexture::getSampler() const
 }
 
 
-void VulkanTexture::createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkQueue graphicsQueue, VkCommandPool commandPool, const std::string& path)
+void VulkanTexture::createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkQueue graphicsQueue, VkCommandPool commandPool, const std::string& path, bool sRGB)
 {
 	this->device = vkdevice;
 	int texWidth, texHeight, texChannels;
@@ -106,6 +106,8 @@ void VulkanTexture::createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysde
 	vkUnmapMemory(vkdevice, stagingBufferMemory);
 
 	stbi_image_free(pixels);
+
+	VkFormat format = sRGB ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
 
 	VulkanImage::createImage(
 		vkdevice, vkphysdevice,
@@ -214,6 +216,95 @@ void VulkanTexture::createRenderableTexture(VkDevice vkdevice, VkPhysicalDevice 
 		VK_IMAGE_ASPECT_COLOR_BIT
 	);
 	createTextureSampler(device, vkphysdevice, mipLevels);
+}
+
+void VulkanTexture::createTexture2DFromMemory(
+	VkDevice device, 
+	VkPhysicalDevice physicalDevice, 
+	VkQueue graphicsQueue, 
+	VkCommandPool commandPool, 
+	const unsigned char* pixelData, 
+	int width, int height, int channels, bool sRGB)
+{
+	this->device = device;
+
+	if (!pixelData) {
+		throw std::runtime_error("Cannot create texture from null pixel data!");
+	}
+
+	VkDeviceSize imageSize = width * height * 4;
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	VulkanBuffer::createBuffer(
+		device,
+		physicalDevice,
+		imageSize,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer,
+		stagingBufferMemory
+	);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+
+	if (channels == 4)
+	{
+		memcpy(data, pixelData, static_cast<size_t>(imageSize));
+	}
+	else if (channels == 3)
+	{
+		uint32_t* rgba_data = static_cast<uint32_t*>(data);
+		for (size_t i = 0; i < (size_t)width * height; ++i)
+		{
+			rgba_data[i * 4 + 0] = pixelData[i * 3 + 0]; // R
+			rgba_data[i * 4 + 1] = pixelData[i * 3 + 1]; // G
+			rgba_data[i * 4 + 2] = pixelData[i * 3 + 2]; // B
+			rgba_data[i * 4 + 3] = 255; // A (fully opaque)
+		}
+	}
+	else
+	{
+		vkUnmapMemory(device, stagingBufferMemory);
+		throw std::runtime_error("Unsupported texture channel count for in-memory loading: " + std::to_string(channels));
+	}
+
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	VkFormat format = sRGB ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+	VulkanImage::createImage(
+		device, physicalDevice,
+		width, height,
+		1, 1,
+		format,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		textureImage, textureImageMemory
+	);
+
+	VulkanImage::transitionImageLayout(
+		device, graphicsQueue, commandPool,
+		textureImage, format,
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	);
+	VulkanImage::copyBufferToImage(
+		device, commandPool, graphicsQueue,
+		stagingBuffer, textureImage, static_cast<uint32_t>(width), static_cast<uint32_t>(height)
+	);
+
+	VulkanImage::transitionImageLayout(
+		device, graphicsQueue, commandPool,
+		textureImage, format,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	createTextureImageView(device, format);
+	createTextureSampler(device, physicalDevice, 1);
 }
 
 void VulkanTexture::createTextureImageView(VkDevice vkdevice, VkFormat format)

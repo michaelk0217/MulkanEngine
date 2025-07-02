@@ -6,9 +6,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include <tiny_gltf.h>
+
 #include <vulkan/vulkan.h>
 #include <array>
 #include <string>
+#include <memory>
 
 
 struct Vertex {
@@ -55,7 +58,7 @@ struct Vertex {
 
 	bool operator==(const Vertex& other) const
 	{
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+		return pos == other.pos && color == other.color && texCoord == other.texCoord && inNormal == other.inNormal;
 	}
 };
 
@@ -87,6 +90,19 @@ enum class MeshFileType
 	FILE_GLTF
 };
 
+// forward declaration
+class VulkanTexture;
+struct Material;
+
+struct GltfLoadResult
+{
+	std::vector<std::vector<Vertex>> meshVertices;
+	std::vector < std::vector<uint32_t>> meshIndices;
+	std::vector<std::shared_ptr<Material>> materials;
+	std::vector<int> meshMaterialIndices;
+	std::vector<std::shared_ptr<VulkanTexture>> textures;
+};
+
 class ModelLoader
 {
 public:
@@ -96,8 +112,56 @@ public:
 	static void createSphere(float radius, uint32_t latSegments, uint32_t lonSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createPlane(float width, float height, uint32_t widthSegments, uint32_t heightSegments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	static void createCube(float halfSize, uint32_t segments, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-	//static void createCube(float halfSize, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	
 	static void createPrimitive(float radius, PrimitiveModelType modelType, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+	static GltfLoadResult loadGLTFModelWithMaterials(
+		const std::string& path,
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool
+	);
+
+private:
+	
+	static std::shared_ptr<VulkanTexture> loadGltfTexture(
+		const tinygltf::Model& model,
+		int textureIndex,
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool,
+		const std::string& gltfFilePath,
+		bool sRGB = false
+	);
+	static std::shared_ptr<Material> createMaterialFromGltf(
+		const tinygltf::Model& model,
+		const tinygltf::Material& gltfMaterial,
+		const std::vector<std::shared_ptr<VulkanTexture>>& textures,
+		const std::string& modelPath,
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool
+	);
+
+	static std::string resolveGltfTexturePath(const std::string& gltfFilePath, const std::string& textureUri);
+
+	static std::shared_ptr<VulkanTexture> loadDefaultTexture(
+		const std::string& textureType,
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool
+	);
+
+	static std::shared_ptr<Material> createDefaultGltfMaterial(
+		const std::string& name,
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool
+	);
 };
 

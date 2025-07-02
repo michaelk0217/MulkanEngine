@@ -14,7 +14,7 @@ public:
 	~VulkanTexture();
 
 	//void create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkCommandPool commandPool, VkQueue graphicsQueue, const std::string& path, bool skybox = false);
-	void createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkQueue graphicsQueue, VkCommandPool commandPool, const std::string& path);
+	void createTexture2D(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkQueue graphicsQueue, VkCommandPool commandPool, const std::string& path,  bool sRGB = false);
 	void createTextureHDR(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, VkQueue graphicsQueue, VkCommandPool commandPool, const std::string& path);
 	void createCubemap(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t width, uint32_t height, uint32_t mipLevel);
 	// for creating an empty render target
@@ -25,6 +25,18 @@ public:
 		uint32_t height,
 		VkFormat format,
 		VkImageUsageFlags usage
+	);
+
+	void createTexture2DFromMemory(
+		VkDevice device,
+		VkPhysicalDevice physicalDevice,
+		VkQueue graphicsQueue,
+		VkCommandPool commandPool,
+		const unsigned char* pixelData,
+		int width,
+		int height,
+		int channels,
+		bool sRGB = false
 	);
 
 	void destroy();

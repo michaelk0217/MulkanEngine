@@ -121,6 +121,7 @@ private:
 	std::unique_ptr<VulkanVertexBuffer> m_skyboxCubeVertexBuffer;
 
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
+	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipeline_doubleSided;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineWireframe;
 	bool m_WireframeMode = false;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineSkybox;
@@ -159,9 +160,10 @@ private:
 	std::unique_ptr<VulkanUniformBuffers> frameUboManager;
 	std::unique_ptr<VulkanUniformBuffers> objectDataDUBManager;
 	std::unique_ptr<VulkanUniformBuffers> lightingUboManager;
+	std::unique_ptr<VulkanUniformBuffers> materialUboManager;
 	SceneLightingUBO sceneLights{}; // CPU SIDE DATA
-	std::unique_ptr<VulkanUniformBuffers> tessellationUboManager;
-	TessellationUBO tessUboData; // CPU SIDE DATA
+	//std::unique_ptr<VulkanUniformBuffers> tessellationUboManager;
+	//TessellationUBO tessUboData; // CPU SIDE DATA
 	size_t tessLevelIndex = 0;
 	std::array<float, 5> tessLevelValue{ 1.0f, 4.0f, 8.0f, 16.0f, 64.0f };
 	// -------------------------------------
@@ -222,12 +224,12 @@ private:
 		m_pbrDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
 		m_pbrDescriptorSetLayout->create(devices->getLogicalDevice());
 
-		VkPushConstantRange pbrPipelinePushConstantRange{};
+		/*VkPushConstantRange pbrPipelinePushConstantRange{};
 		pbrPipelinePushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		pbrPipelinePushConstantRange.offset = 0;
-		pbrPipelinePushConstantRange.size = sizeof(uint32_t);
+		pbrPipelinePushConstantRange.size = sizeof(uint32_t);*/
 		m_pbrPipelineLayout = std::make_unique<VulkanPipelineLayout>();
-		m_pbrPipelineLayout->create(devices->getLogicalDevice(), m_pbrDescriptorSetLayout->getVkDescriptorSetLayout(), 1u, &pbrPipelinePushConstantRange);
+		m_pbrPipelineLayout->create(devices->getLogicalDevice(), m_pbrDescriptorSetLayout->getVkDescriptorSetLayout());
 
 		m_skyboxDescriptorSetLayout = std::make_unique<VulkanDescriptorSetLayout>();
 		m_skyboxDescriptorSetLayout->createForSkybox(devices->getLogicalDevice());
@@ -241,12 +243,26 @@ private:
 			devices->getLogicalDevice(), 
 			m_pbrPipelineLayout->getVkPipelineLayout(),
 			renderPass->getVkRenderPass(), 
-			"shaders/tess.vert.spv", 
+			"shaders/vert.spv", 
 			"shaders/frag.spv",
-			"shaders/tess.tesc.spv",
-			"shaders/tess.tese.spv",
+			//"shaders/tess.tesc.spv",
+			//"shaders/tess.tese.spv",
 			VK_POLYGON_MODE_FILL
 		);
+		m_GraphicsPipeline_doubleSided = std::make_unique<VulkanGraphicsPipeline>();
+		m_GraphicsPipeline_doubleSided->create(
+			devices->getLogicalDevice(),
+			m_pbrPipelineLayout->getVkPipelineLayout(),
+			renderPass->getVkRenderPass(),
+			"shaders/vert.spv",
+			"shaders/frag.spv",
+			//"shaders/tess.tesc.spv",
+			//"shaders/tess.tese.spv",
+			VK_POLYGON_MODE_FILL,
+			//VK_CULL_MODE_NONE
+			VK_CULL_MODE_FRONT_BIT
+		);
+
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceFeatures(devices->getPhysicalDevice(), &deviceFeatures);
 		if (deviceFeatures.fillModeNonSolid)
@@ -256,10 +272,10 @@ private:
 				devices->getLogicalDevice(),
 				m_pbrPipelineLayout->getVkPipelineLayout(),
 				renderPass->getVkRenderPass(),
-				"shaders/tess.vert.spv",
+				"shaders/vert.spv",
 				"shaders/wireframe.frag.spv",
-				"shaders/tess.tesc.spv",
-				"shaders/tess.tese.spv",
+				//"shaders/tess.tesc.spv",
+				//"shaders/tess.tese.spv",
 				VK_POLYGON_MODE_LINE
 			);
 		}
@@ -323,8 +339,29 @@ private:
 		sceneLights.dirLight.direction = glm::normalize(glm::vec4(-0.5, -1.0f, -0.5f, 0.0f));
 		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 10.0f); //w intensity
 
-		tessellationUboManager = std::make_unique<VulkanUniformBuffers>();
-		tessellationUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(TessellationUBO));
+		materialUboManager = std::make_unique<VulkanUniformBuffers>();
+		VkDeviceSize materialUboSize = sizeof(MaterialUBO) * m_AssetManager->getMaterials().size();
+		materialUboManager->create(
+			devices->getLogicalDevice(),
+			devices->getPhysicalDevice(),
+			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
+			materialUboSize,
+			false
+		);
+		// populate materialUbo
+		int materialIndex = 0;
+		for (auto const& [name, material] : m_AssetManager->getMaterials())
+		{
+			for (int frame = 0; frame < VulkanGlobals::MAX_FRAMES_IN_FLIGHT; ++frame)
+			{
+				char* mappedData = static_cast<char*>(materialUboManager->getMappedMemory(frame));
+				memcpy(mappedData + (materialIndex * sizeof(MaterialUBO)), &material->uboData, sizeof(MaterialUBO));
+			}
+			materialIndex++;
+		}
+
+		//tessellationUboManager = std::make_unique<VulkanUniformBuffers>();
+		//tessellationUboManager->create(devices->getLogicalDevice(), devices->getPhysicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, sizeof(TessellationUBO));
 
 		// ------------------------
 
@@ -349,7 +386,7 @@ private:
 			frameUboManager->getBuffers(),
 			objectDataDUBManager->getBuffers(),
 			lightingUboManager->getBuffers(),
-			tessellationUboManager->getBuffers(),
+			materialUboManager->getBuffers(),
 			m_AssetManager->getMaterials(),
 			iblPacket
 		);
@@ -438,7 +475,7 @@ private:
 			uint32_t uboFrameIndex = renderer->getCurrentFrame();
 
 			//tessUboData.displacementScale = 0.0f;
-			tessellationUboManager->update(uboFrameIndex, tessUboData);
+			//tessellationUboManager->update(uboFrameIndex, tessUboData);
 			frameUboManager->update(uboFrameIndex, frameUboUpdate());
 
 			sceneLights.viewPosition = glm::vec4(camera->getCameraPosition(), 1.0f);
@@ -459,6 +496,7 @@ private:
 
 			RenderPacket renderPacket{};
 			renderPacket.pbrPipeline = pipelineToUse;
+			renderPacket.pbrPipeline_doubleSided = m_GraphicsPipeline_doubleSided->getVkPipeline();
 			renderPacket.pbrLayout = m_pbrPipelineLayout->getVkPipelineLayout();
 			renderPacket.pbrRenderables = renderableObjects;
 			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
@@ -467,10 +505,11 @@ private:
 			SceneDebugContextPacket debugContextPacket
 			{
 				m_WireframeMode,
-				tessUboData,
+				//tessUboData,
 				sceneLights,
 				camera.get(),
-				deltaTime
+				deltaTime,
+				renderableObjects
 			};
 
 			m_imguiManager->buildUI(debugContextPacket);
@@ -662,8 +701,11 @@ private:
 		if (lightingUboManager) lightingUboManager->destroy();
 		lightingUboManager.reset();
 
-		if (tessellationUboManager) tessellationUboManager->destroy();
-		tessellationUboManager.reset();
+		if (materialUboManager) materialUboManager->destroy();
+		materialUboManager.reset();
+
+		//if (tessellationUboManager) tessellationUboManager->destroy();
+		//tessellationUboManager.reset();
 
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
@@ -676,6 +718,9 @@ private:
 
 		if (m_GraphicsPipelineFill) m_GraphicsPipelineFill->destroy();
 		m_GraphicsPipelineFill.reset();
+
+		if (m_GraphicsPipeline_doubleSided) m_GraphicsPipeline_doubleSided->destroy();
+		m_GraphicsPipeline_doubleSided.reset();
 
 		if (m_GraphicsPipelineWireframe) m_GraphicsPipelineWireframe->destroy();
 		m_GraphicsPipelineWireframe.reset();
@@ -784,108 +829,123 @@ private:
 
 	void loadAssetsAndCreateRenderables()
 	{
-		SceneObjectDefinition MetalBall{};
-		MetalBall.name = "Metal_PBR_Preview";
-		MetalBall.meshPath = "";
-		MetalBall.materialName = "Metal055A_4K";
-		MetalBall.albedoPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png";
-		MetalBall.normalPath = "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png";
-		MetalBall.ormPath = "textures/Metal055A_4K/Metal055A_4K-MRA.png";
-		MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
-		MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
-		MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		MetalBall.useOrm = true;
+		//SceneObjectDefinition MetalBall{};
+		//MetalBall.name = "Metal_PBR_Preview";
+		//MetalBall.meshPath = "";
+		//MetalBall.materialName = "Metal055A_4K";
+		//MetalBall.albedoPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Color.png";
+		//MetalBall.normalPath = "textures/Metal055A_4K/Metal055A_4K-PNG_NormalDX.png";
+		//MetalBall.ormPath = "textures/Metal055A_4K/Metal055A_4K-MRA.png";
+		//MetalBall.displacementPath = "textures/Metal055A_4K/Metal055A_4K-PNG_Displacement.png";
+		//MetalBall.position = glm::vec3(0.0, 0.0, 0.0);
+		//MetalBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//MetalBall.useOrm = true;
 
-		SceneObjectDefinition TileFloor;
-		TileFloor.name = "TileFloor";
-		TileFloor.meshPath = "";
-		TileFloor.materialName = "Tiles107_2K";
-		TileFloor.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
-		TileFloor.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
-		TileFloor.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
-		TileFloor.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
-		TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
-		TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
-		TileFloor.useOrm = true;
+		//SceneObjectDefinition TileFloor;
+		//TileFloor.name = "TileFloor";
+		//TileFloor.meshPath = "";
+		//TileFloor.materialName = "Tiles107_2K";
+		//TileFloor.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
+		//TileFloor.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
+		//TileFloor.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
+		//TileFloor.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
+		//TileFloor.position = glm::vec3(0.0, -2.5, 0.0);
+		//TileFloor.defaultModel = PrimitiveModelType::CREATE_PLANE;
+		//TileFloor.useOrm = true;
 
-		SceneObjectDefinition TileBall;
-		TileBall.name = "TileBall";
-		TileBall.meshPath = "";
-		TileBall.materialName = "Tiles107_2K";
-		TileBall.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
-		TileBall.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
-		TileBall.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
-		TileBall.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
-		TileBall.position = glm::vec3(30.0, 0.0, 0.0);
-		TileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		TileBall.useOrm = true;
+		//SceneObjectDefinition TileBall;
+		//TileBall.name = "TileBall";
+		//TileBall.meshPath = "";
+		//TileBall.materialName = "Tiles107_2K";
+		//TileBall.albedoPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Color.png";
+		//TileBall.normalPath = "textures/Tiles107_2K/Tiles107_2K-PNG_NormalDX.png";
+		//TileBall.ormPath = "textures/Tiles107_2K/Tiles107_2K-PNG_ORM.png";
+		//TileBall.displacementPath = "textures/Tiles107_2K/Tiles107_2K-PNG_Displacement.png";
+		//TileBall.position = glm::vec3(30.0, 0.0, 0.0);
+		//TileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//TileBall.useOrm = true;
 
-		SceneObjectDefinition MetalBall2{};
-		MetalBall2.name = "Metal2_PBR_Preview";
-		MetalBall2.meshPath = "";
-		MetalBall2.materialName = "Metal049A_2K";
-		MetalBall2.albedoPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Color.png";
-		MetalBall2.normalPath = "textures/Metal049A_2K/Metal049A_2K-PNG_NormalDX.png";
-		MetalBall2.ormPath = "textures/Metal049A_2K/Metal049A_2K-PNG_ORM.png";
-		MetalBall2.displacementPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Displacement.png";
-		MetalBall2.position = glm::vec3(20.0, 0.0, 0.0);
-		MetalBall2.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		MetalBall2.useOrm = true;
+		//SceneObjectDefinition MetalBall2{};
+		//MetalBall2.name = "Metal2_PBR_Preview";
+		//MetalBall2.meshPath = "";
+		//MetalBall2.materialName = "Metal049A_2K";
+		//MetalBall2.albedoPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Color.png";
+		//MetalBall2.normalPath = "textures/Metal049A_2K/Metal049A_2K-PNG_NormalDX.png";
+		//MetalBall2.ormPath = "textures/Metal049A_2K/Metal049A_2K-PNG_ORM.png";
+		//MetalBall2.displacementPath = "textures/Metal049A_2K/Metal049A_2K-PNG_Displacement.png";
+		//MetalBall2.position = glm::vec3(20.0, 0.0, 0.0);
+		//MetalBall2.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//MetalBall2.useOrm = true;
 
-		SceneObjectDefinition GoldTileBall{};
-		GoldTileBall.name = "GoldTile_PBR_Preview";
-		GoldTileBall.meshPath = "";
-		GoldTileBall.materialName = "MetalTiles03_4K";
-		GoldTileBall.albedoPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_BaseColor.png";
-		GoldTileBall.normalPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Normal.png";
-		GoldTileBall.ormPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_ORM.png";
-		GoldTileBall.displacementPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Height.png";
-		GoldTileBall.position = glm::vec3(10.0, 0.0, 0.0);
-		GoldTileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		GoldTileBall.useOrm = true;
+		//SceneObjectDefinition GoldTileBall{};
+		//GoldTileBall.name = "GoldTile_PBR_Preview";
+		//GoldTileBall.meshPath = "";
+		//GoldTileBall.materialName = "MetalTiles03_4K";
+		//GoldTileBall.albedoPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_BaseColor.png";
+		//GoldTileBall.normalPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Normal.png";
+		//GoldTileBall.ormPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_ORM.png";
+		//GoldTileBall.displacementPath = "textures/MetalTiles03_packed_4K/MetalTiles03_4K_Height.png";
+		//GoldTileBall.position = glm::vec3(10.0, 0.0, 0.0);
+		//GoldTileBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//GoldTileBall.useOrm = true;
 
-		SceneObjectDefinition MarbleBall{};
-		MarbleBall.name = "MarbleBall_PBR_Preview";
-		MarbleBall.meshPath = "";
-		MarbleBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		MarbleBall.materialName = "Marble04_2K";
-		MarbleBall.albedoPath = "textures/Marble04_2K/Marble04_2K_BaseColor.png";
-		MarbleBall.normalPath = "textures/Marble04_2K/Marble04_2K_Normal.png";
-		MarbleBall.roughnessPath = "textures/Marble04_2K/Marble04_2K_Roughness.png";
-		//MarbleBall.displacementPath = "textures/Marble04_2K/Marble04_2K_Height.png";
-		MarbleBall.useOrm = false;
-		MarbleBall.position = glm::vec3(-10.0, 0.0, 0.0);
+		//SceneObjectDefinition MarbleBall{};
+		//MarbleBall.name = "MarbleBall_PBR_Preview";
+		//MarbleBall.meshPath = "";
+		//MarbleBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//MarbleBall.materialName = "Marble04_2K";
+		//MarbleBall.albedoPath = "textures/Marble04_2K/Marble04_2K_BaseColor.png";
+		//MarbleBall.normalPath = "textures/Marble04_2K/Marble04_2K_Normal.png";
+		//MarbleBall.roughnessPath = "textures/Marble04_2K/Marble04_2K_Roughness.png";
+		////MarbleBall.displacementPath = "textures/Marble04_2K/Marble04_2K_Height.png";
+		//MarbleBall.useOrm = false;
+		//MarbleBall.position = glm::vec3(-10.0, 0.0, 0.0);
 
-		SceneObjectDefinition GroundBall{};
-		GroundBall.name = "GroundBall_PBR_Preview";
-		GroundBall.meshPath = "";
-		GroundBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
-		GroundBall.materialName = "Ground078_4K";
-		GroundBall.albedoPath = "textures/Ground078_4K/Ground078_4K-PNG_Color.png";
-		GroundBall.normalPath = "textures/Ground078_4K/Ground078_4K-PNG_NormalDX.png";
-		GroundBall.aoPath = "textures/Ground078_4K/Ground078_4K-PNG_AmbientOcclusion.png";
-		GroundBall.roughnessPath = "textures/Ground078_4K/Ground078_4K-PNG_Roughness.png";
-		GroundBall.displacementPath = "textures/Ground078_4K/Ground078_4K-PNG_Displacement.png";
-		GroundBall.useOrm = false;
-		GroundBall.position = glm::vec3(0.0, 0.0, 0.0);
+		//SceneObjectDefinition GroundBall{};
+		//GroundBall.name = "GroundBall_PBR_Preview";
+		//GroundBall.meshPath = "";
+		//GroundBall.defaultModel = PrimitiveModelType::CREATE_SPHERE;
+		//GroundBall.materialName = "Ground078_4K";
+		//GroundBall.albedoPath = "textures/Ground078_4K/Ground078_4K-PNG_Color.png";
+		//GroundBall.normalPath = "textures/Ground078_4K/Ground078_4K-PNG_NormalDX.png";
+		//GroundBall.aoPath = "textures/Ground078_4K/Ground078_4K-PNG_AmbientOcclusion.png";
+		//GroundBall.roughnessPath = "textures/Ground078_4K/Ground078_4K-PNG_Roughness.png";
+		//GroundBall.displacementPath = "textures/Ground078_4K/Ground078_4K-PNG_Displacement.png";
+		//GroundBall.useOrm = false;
+		//GroundBall.position = glm::vec3(0.0, 0.0, 0.0);
+
+		SceneObjectDefinition fruitBasket{};
+		fruitBasket.meshFileType = MeshFileType::FILE_GLTF;
+		fruitBasket.name = "fruitBasket_test";
+		fruitBasket.meshPath = "models/gltf/DamagedHelmet/DamagedHelmet.gltf";
+		//fruitBasket.meshPath = "models/gltf/DamagedHelmet.gltf";
+		//fruitBasket.meshPath = "models/gltf/CompareMetallic.glb";
+		//fruitBasket.scale = glm::vec3(1); // does not seem to work...?
+		
+
 
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			//MetalBall,
-
-			//TileFloor,
-			TileBall,
-			MetalBall2,
-			GoldTileBall,
-			MarbleBall,
-			GroundBall
+			//TileBall,
+			//MetalBall2,
+			//GoldTileBall,
+			//MarbleBall,
+			//GroundBall,
+			fruitBasket // Validation errors regarding descriptor sets pop up when I include this glTF
 		};
 
-		// The entire loading process is now a simple loop.
 		// The AssetManager handles all the complexity of caching and resource creation.
 		for (const auto& def : sceneDefinitions)
 		{
-			renderableObjects.push_back(m_AssetManager->createRenderableObject(def));
+			if (def.meshFileType == MeshFileType::FILE_GLTF)
+			{
+				auto gltfRenderables = m_AssetManager->createRenderableObjectsFromGltf(def);
+				renderableObjects.insert(renderableObjects.end(), gltfRenderables.begin(), gltfRenderables.end());
+			}
+			/*else
+			{
+				renderableObjects.push_back(m_AssetManager->createRenderableObject(def));
+			}*/
 		}
 	}
 
@@ -899,22 +959,7 @@ private:
 		{
 			const auto& renderable = renderableObjects[i];
 			ObjectUniformBufferObject objectUbo{};
-			// The modelMatrix in RenderableObject should be its complete world transform
-			// If you applied a global rotation (like the spinning viking room) previously
-			// in the FrameUniformBufferObject, that logic should now be applied here
-			// to each renderableObject's modelMatrix if desired.
-
-			// Example: If renderable.modelMatrix is just the static placement
-			// and you want to add a dynamic rotation like before:
-			// float time = accumulatedTime; // Or pass time specifically
-			// glm::mat4 dynamicRotation = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-			// objectUbo.model = dynamicRotation * renderable.modelMatrix;
-
-
-			// Assuming renderable.modelMatrix is what you want to render
 			objectUbo.model = renderable.modelMatrix;
-
-
 			objectDataDUBManager->updateDynamic(currentFrameIndex, i, objectUbo);
 		}
 	}
@@ -1217,7 +1262,6 @@ private:
 			VkBuffer vertexBuffers[] = { m_skyboxCubeVertexBuffer->getVkBuffer() };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-			// draw 36 vertices of cube
 			vkCmdDraw(cmd, 36, 1, 0, 0);
 
 			vkCmdEndRenderPass(cmd);
@@ -1234,7 +1278,7 @@ private:
 			VK_FORMAT_R32G32B32A32_SFLOAT,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			6 // <-- This is the layer count for the whole cubemap
+			6
 		);
 
 		for (uint32_t i = 0; i < 6; i++)
@@ -1422,17 +1466,6 @@ private:
 
 				vkCmdEndRenderPass(cmd);
 			}
-
-			/*VulkanImage::recordTransitionImageLayout(
-				cmd,
-				prefilterMap->getImage(),
-				VK_FORMAT_R32G32B32A32_SFLOAT,
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				6,
-				0,
-				maxMipLevels
-			);*/
 			VulkanCommandBuffers::endSingleTimeCommands(cmd, devices->getLogicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool());
 			vkQueueWaitIdle(devices->getGraphicsQueue());
 

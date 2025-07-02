@@ -172,6 +172,11 @@ std::vector<VkBuffer> VulkanUniformBuffers::getBuffers() const
 	return uniformBuffers;
 }
 
+void* VulkanUniformBuffers::getMappedMemory(uint32_t frameIndex) const
+{
+	return uniformBuffersMapped[frameIndex];
+}
+
 VkDeviceSize VulkanUniformBuffers::totalObjectDataBufferSize(VkPhysicalDevice physdevice)
 {
 	VkDeviceSize objectDataUboAlignedSize;

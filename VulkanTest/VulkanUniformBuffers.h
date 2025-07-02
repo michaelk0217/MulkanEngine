@@ -29,6 +29,24 @@ struct TessellationUBO {
 	float displacementScale = 0.1f; // Default displacement depth
 };
 
+//struct MaterialUBO {
+//	glm::vec4 baseColorFactor;
+//	glm::vec4 emissiveFactor;
+//	float metallicFactor;
+//	float roughnessFactor;
+//
+//	int hasAlbedoMap;
+//	int hasNormalMap;
+//	int hasMetallicRoughnessMap;
+//	int hasOcclusionMap;
+//	int hasEmissiveMap;
+//
+//	// to ensure the total size is a multiple of 16
+//	float padding1;
+//	int padding2;
+//	int padding3;
+//};
+
 class VulkanUniformBuffers
 {
 public:
@@ -52,6 +70,8 @@ public:
 	VkBuffer getBuffer(uint32_t frameIndex) const;
 
 	std::vector<VkBuffer> getBuffers() const;
+
+	void* getMappedMemory(uint32_t frameIndex) const;
 
 	static VkDeviceSize totalObjectDataBufferSize(VkPhysicalDevice physdevice);
 

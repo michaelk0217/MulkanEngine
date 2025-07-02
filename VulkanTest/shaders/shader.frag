@@ -15,23 +15,41 @@ layout(binding = 2) uniform SceneLightingUBO
     vec4 viewPos;
 } sceneUbo;
 
-// PBR SAMPLERS
-layout(binding = 3) uniform sampler2D albedoMap;
-layout(binding = 4) uniform sampler2D normalMap;
-layout(binding = 5) uniform sampler2D ormMap;
+layout(binding = 3) uniform MaterialUBO
+{
+    vec4 baseColorFactor;
+    vec4 emissiveFactor;
+    float metallicFactor;
+    float roughnessFactor;
+    
+    int hasAlbedoMap;
+    int hasNormalMap;
+    int hasMetallicRoughnessMap;
+    int hasOcclusionMap;
+    int hasEmissiveMap;
+    float padding1; 
+    int padding2;
+    int padding3;
+} material;
 
-layout(binding = 6) uniform sampler2D aoMap;
-layout(binding = 7) uniform sampler2D roughnessMap;
-layout(binding = 8) uniform sampler2D metallnessMap;
+// PBR SAMPLERS
+layout(binding = 4) uniform sampler2D albedoMap;
+layout(binding = 5) uniform sampler2D normalMap;
+layout(binding = 6) uniform sampler2D metallicRoughnessMap;
+layout(binding = 7) uniform sampler2D occlusionMap;
+layout(binding = 8) uniform sampler2D emissiveMap;
+// layout(binding = 6) uniform sampler2D aoMap;
+// layout(binding = 7) uniform sampler2D roughnessMap;
+// layout(binding = 8) uniform sampler2D metallnessMap;
 
 // IBL SAMPLERS
-layout(binding = 11) uniform samplerCube irradianceMap;
-layout(binding = 12) uniform samplerCube prefilterMap;
-layout(binding = 13) uniform sampler2D brdfLut;
+layout(binding = 9) uniform samplerCube irradianceMap;
+layout(binding = 10) uniform samplerCube prefilterMap;
+layout(binding = 11) uniform sampler2D brdfLut;
 
-layout(push_constant) uniform PushConstants {
-    uint useOrm;
-} pushConstants;
+// layout(push_constant) uniform PushConstants {
+//     uint useOrm;
+// } pushConstants;
 
 const float PI = 3.14159265359;
 
@@ -80,28 +98,55 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 
 void main() {
     // --- Material Property Setup ---
-    vec3 albedo = texture(albedoMap, inTexCoord).rgb;
-    vec3 ormData = texture(ormMap, inTexCoord).rgb;
-    // float ao = ormData.r;
-    // float roughness = ormData.g;
-    // float metallic = ormData.b;
+    // vec3 albedo = texture(albedoMap, inTexCoord).rgb;
+    // vec3 ormData = texture(ormMap, inTexCoord).rgb;
+    // // float ao = ormData.r;
+    // // float roughness = ormData.g;
+    // // float metallic = ormData.b;
 
-    float ao, roughness, metallic;
-
-
-    if (pushConstants.useOrm == 1)
+    // float ao, roughness, metallic;
+    vec3 albedo = material.baseColorFactor.rgb;
+    if (material.hasAlbedoMap == 1)
     {
-        ao = ormData.r;
-        roughness = ormData.g;
-        metallic = ormData.b;
+        albedo *= texture(albedoMap, inTexCoord).rgb;
+    }
+
+    float metallic = material.metallicFactor;
+    float roughness = material.roughnessFactor;
+    float ao = 1.0;
+    if (material.hasMetallicRoughnessMap == 1)
+    {
+        vec4 mr = texture(metallicRoughnessMap, inTexCoord);
+        roughness *= mr.g;
+        metallic *= mr.b;
+        ao = mr.r;
 
     }
-    else
+    if (material.hasOcclusionMap == 1) // override if there is occlusion map
     {
-        ao = texture(aoMap, inTexCoord).r;
-        roughness = texture(roughnessMap, inTexCoord).r;
-        metallic = texture(metallnessMap, inTexCoord).r;
+        ao = texture(occlusionMap, inTexCoord).r; 
     }
+    
+    vec3 emission = material.emissiveFactor.rgb;
+    if (material.hasEmissiveMap == 1)
+    {
+        emission *= texture(emissiveMap, inTexCoord).rgb;
+    }
+
+
+    // if (pushConstants.useOrm == 1)
+    // {
+    //     ao = ormData.r;
+    //     roughness = ormData.g;
+    //     metallic = ormData.b;
+
+    // }
+    // else
+    // {
+    //     ao = texture(aoMap, inTexCoord).r;
+    //     roughness = texture(roughnessMap, inTexCoord).r;
+    //     metallic = texture(metallnessMap, inTexCoord).r;
+    // }
 
 
     vec3 N = normalize(inNormalWorld); // The surface normal
@@ -152,8 +197,10 @@ void main() {
     // -- Simple Approximation for indirect light, modulated by the Ambient Occulsion map.
     vec3 ambient = (kD * diffuse_indirect + specular_indirect) * ao;
 
+
+
     // Combining direct lighting (Lo) and indirect/ambient lighting
-    vec3 color = ambient + Lo;
+    vec3 color = ambient + Lo + emission;
 
     // Tone Mapping & Gamma Correction
     color = color / (color + vec3(1.0)); // Basic Reinhard tone mapping

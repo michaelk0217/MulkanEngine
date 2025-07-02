@@ -47,6 +47,6 @@ private:
 
 	void drawControlPanel(SceneDebugContextPacket& sceneDebugContextPacket);
 	void drawLightingPanel(SceneDebugContextPacket& sceneDebugContextPacket);
-
+	void drawObjectsPanel(SceneDebugContextPacket& sceneDebugContextPacket);
 };
 

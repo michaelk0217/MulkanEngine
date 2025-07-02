@@ -16,22 +16,23 @@ void VulkanGraphicsPipeline::create(
 	VkRenderPass renderPass, 
 	const std::string& vertShaderPath, 
 	const std::string& fragShaderPath, 
-	const std::string& tescShaderPath, 
-	const std::string& teseShaderPath,
-	VkPolygonMode polygonMode
+	//const std::string& tescShaderPath, 
+	//const std::string& teseShaderPath,
+	VkPolygonMode polygonMode,
+	VkCullModeFlagBits cullMode
 )
 {
 	device = vkDevice;
 
 	auto vertShaderCode = readFile(vertShaderPath);
 	auto fragShaderCode = readFile(fragShaderPath);
-	auto tescShaderCode = readFile(tescShaderPath);
-	auto teseShaderCode = readFile(teseShaderPath);
+	//auto tescShaderCode = readFile(tescShaderPath);
+	//auto teseShaderCode = readFile(teseShaderPath);
 
 	VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
 	VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
-	VkShaderModule tescShaderModule = createShaderModule(device, tescShaderCode);
-	VkShaderModule teseShaderModule = createShaderModule(device, teseShaderCode);
+	//VkShaderModule tescShaderModule = createShaderModule(device, tescShaderCode);
+	//VkShaderModule teseShaderModule = createShaderModule(device, teseShaderCode);
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -45,7 +46,7 @@ void VulkanGraphicsPipeline::create(
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo tescShaderStageInfo{};
+	/*VkPipelineShaderStageCreateInfo tescShaderStageInfo{};
 	tescShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	tescShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
 	tescShaderStageInfo.module = tescShaderModule;
@@ -55,13 +56,13 @@ void VulkanGraphicsPipeline::create(
 	teseShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	teseShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 	teseShaderStageInfo.module = teseShaderModule;
-	teseShaderStageInfo.pName = "main";
+	teseShaderStageInfo.pName = "main";*/
 
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { 
 		vertShaderStageInfo,
-		tescShaderStageInfo,
-		teseShaderStageInfo,
+		/*tescShaderStageInfo,
+		teseShaderStageInfo,*/
 		fragShaderStageInfo 
 	};
 
@@ -78,8 +79,8 @@ void VulkanGraphicsPipeline::create(
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	//inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; // feeding the GPU patches
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	//inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; // for tessellation
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkPipelineViewportStateCreateInfo viewportState{};
@@ -92,7 +93,7 @@ void VulkanGraphicsPipeline::create(
 	rasterizer.depthClampEnable = VK_FALSE;
 	rasterizer.polygonMode = polygonMode;
 	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.cullMode = cullMode;
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; // to counter the Y-Flip from GLM, after the Y-Flip, it would practically be counter clockwise.
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f;
@@ -158,7 +159,7 @@ void VulkanGraphicsPipeline::create(
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = 4;
+	pipelineInfo.stageCount = 2;
 	pipelineInfo.pStages = shaderStages;
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -182,8 +183,8 @@ void VulkanGraphicsPipeline::create(
 
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(device, tescShaderModule, nullptr);
-	vkDestroyShaderModule(device, teseShaderModule, nullptr);
+	//vkDestroyShaderModule(device, tescShaderModule, nullptr);
+	//vkDestroyShaderModule(device, teseShaderModule, nullptr);
 }
 
 void VulkanGraphicsPipeline::createSkybox(VkDevice vkDevice, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& vertShaderPath, const std::string& fragShaderPath)

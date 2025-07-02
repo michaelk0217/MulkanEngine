@@ -17,7 +17,6 @@ layout(binding = 1) uniform ObjectUbo { // Per-object data
 
 layout(binding = 9) uniform sampler2D displacementMap;
 
-// FIX: Added the 'uniform' keyword
 layout(binding = 10) uniform TessellationUBO {
     float tessellationLevel;
     float displacementScale;

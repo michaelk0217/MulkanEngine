@@ -20,6 +20,13 @@ struct MeshData
 	uint32_t indexCount = 0;
 };
 
+struct ModelData
+{
+	std::vector<MeshData> meshes;
+	std::vector<std::shared_ptr<Material>> materials;
+	std::vector<int> meshMaterialIndices; // which material each mesh uses
+};
+
 class AssetManager
 {
 public:
@@ -31,17 +38,22 @@ public:
 	AssetManager(AssetManager&&) = delete;
 	AssetManager& operator=(AssetManager&&) = delete;
 
-	RenderableObject createRenderableObject(const SceneObjectDefinition& def);
+	//RenderableObject createRenderableObject(const SceneObjectDefinition& def);
 
-	std::shared_ptr<VulkanTexture> loadTexture(const std::string& path, const std::string& defaultPath = "");
+	//std::shared_ptr<VulkanTexture> loadTexture(const std::string& path, const std::string& defaultPath = "", bool sRGB = false);
 
 	std::map<std::string, std::shared_ptr<Material>>& getMaterials();
+
+	std::shared_ptr<ModelData> loadGltfModel(const std::string& path);
+	std::vector<RenderableObject> createRenderableObjectsFromGltf(
+		const SceneObjectDefinition& def
+	);
 
 	void cleanup();
 private:
 	// Private helper methods that implement the caching logic.
-	std::shared_ptr<MeshData> getMesh(const SceneObjectDefinition& def);
-	std::shared_ptr<Material> getMaterial(const SceneObjectDefinition& def);
+	//std::shared_ptr<MeshData> getMesh(const SceneObjectDefinition& def);
+	//std::shared_ptr<Material> getMaterial(const SceneObjectDefinition& def);
 
 	// Pointers to essential Vulkan components (owned by VulkanEngine).
 	VulkanDevice* m_pDevice;
@@ -52,4 +64,5 @@ private:
 	std::map<std::string, std::shared_ptr<MeshData>> m_Meshes;
 	std::map<std::string, std::shared_ptr<Material>> m_Materials;
 	std::map<std::string, std::shared_ptr<VulkanTexture>> m_Textures;
+	std::map<std::string, std::shared_ptr<ModelData>> m_Models;
 };

@@ -20,9 +20,10 @@ public:
 		VkRenderPass renderPass, 
 		const std::string& vertShaderPath, 
 		const std::string& fragShaderPath, 
-		const std::string& tescShaderPath, 
-		const std::string& teseShaderPath,
-		VkPolygonMode polygoneMode
+		//const std::string& tescShaderPath, 
+		//const std::string& teseShaderPath,
+		VkPolygonMode polygoneMode,
+		VkCullModeFlagBits cullMode = VK_CULL_MODE_BACK_BIT
 	);
 
 	void createSkybox(

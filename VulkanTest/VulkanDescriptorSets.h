@@ -39,7 +39,8 @@ public:
 		const std::vector<VkBuffer> frameUboBuffers,
 		const std::vector<VkBuffer> objectDUBuffers,
 		const std::vector<VkBuffer> lightingUboBuffers,
-		const std::vector<VkBuffer> tessUboBuffers,
+		//const std::vector<VkBuffer> tessUboBuffers,
+		const std::vector<VkBuffer> materialDataUboBuffers,
 		std::map<std::string, std::shared_ptr<Material>>& materials,
 		IblPacket iblPacket
 	);

@@ -7,9 +7,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
-
+#include <glm/gtc/type_ptr.hpp>
 #include <cmath>
 #include <vector>
+#include <filesystem>
+#include <iostream>
+#include "Material.h"
+#include "VulkanTexture.h"
+
 
 void ModelLoader::loadModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
 {
@@ -101,32 +106,45 @@ void ModelLoader::loadGLTFModel(const std::string& path, std::vector<Vertex>& ve
 	// Iterate through all meshes in the glTF model
 	for (const auto& mesh : model.meshes) {
 		for (const auto& primitive : mesh.primitives) {
-			// Get accessor for vertex attributes
-			const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
-			const auto& normAccessor = primitive.attributes.find("NORMAL") != primitive.attributes.end()
-				? model.accessors[primitive.attributes.at("NORMAL")]
-				: tinygltf::Accessor{};
-			const auto& texAccessor = primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()
-				? model.accessors[primitive.attributes.at("TEXCOORD_0")]
-				: tinygltf::Accessor{};
-
-			// Get buffer views and buffers
-			const auto& posBufferView = model.bufferViews[posAccessor.bufferView];
-			const auto& posBuffer = model.buffers[posBufferView.buffer];
-			const float* positions = reinterpret_cast<const float*>(&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
-
-			const float* normals = nullptr;
-			if (normAccessor.count > 0) {
-				const auto& normBufferView = model.bufferViews[normAccessor.bufferView];
-				const auto& normBuffer = model.buffers[normBufferView.buffer];
-				normals = reinterpret_cast<const float*>(&normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
+			// Validate required attributes
+			if (primitive.attributes.find("POSITION") == primitive.attributes.end()) {
+				throw std::runtime_error("POSITION attribute is required but not found");
 			}
 
+			// Get accessors for vertex attributes
+			const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
+
+			// Check for optional attributes
+			bool hasNormals = primitive.attributes.find("NORMAL") != primitive.attributes.end();
+			bool hasTexCoords = primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end();
+
+			const tinygltf::Accessor* normAccessor = hasNormals ?
+				&model.accessors[primitive.attributes.at("NORMAL")] : nullptr;
+			const tinygltf::Accessor* texAccessor = hasTexCoords ?
+				&model.accessors[primitive.attributes.at("TEXCOORD_0")] : nullptr;
+
+			// Get position buffer data
+			const auto& posBufferView = model.bufferViews[posAccessor.bufferView];
+			const auto& posBuffer = model.buffers[posBufferView.buffer];
+			const float* positions = reinterpret_cast<const float*>(
+				&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
+
+			// Get normal buffer data (if available)
+			const float* normals = nullptr;
+			if (hasNormals && normAccessor) {
+				const auto& normBufferView = model.bufferViews[normAccessor->bufferView];
+				const auto& normBuffer = model.buffers[normBufferView.buffer];
+				normals = reinterpret_cast<const float*>(
+					&normBuffer.data[normBufferView.byteOffset + normAccessor->byteOffset]);
+			}
+
+			// Get texture coordinate buffer data (if available)
 			const float* texCoords = nullptr;
-			if (texAccessor.count > 0) {
-				const auto& texBufferView = model.bufferViews[texAccessor.bufferView];
+			if (hasTexCoords && texAccessor) {
+				const auto& texBufferView = model.bufferViews[texAccessor->bufferView];
 				const auto& texBuffer = model.buffers[texBufferView.buffer];
-				texCoords = reinterpret_cast<const float*>(&texBuffer.data[texBufferView.byteOffset + texAccessor.byteOffset]);
+				texCoords = reinterpret_cast<const float*>(
+					&texBuffer.data[texBufferView.byteOffset + texAccessor->byteOffset]);
 			}
 
 			// Load vertices
@@ -141,40 +159,106 @@ void ModelLoader::loadGLTFModel(const std::string& path, std::vector<Vertex>& ve
 				};
 
 				// Normals (optional)
-				vertex.inNormal = normals ? glm::vec3{ normals[i * 3 + 0], normals[i * 3 + 1], normals[i * 3 + 2] }
-				: glm::vec3{ 0.0f, 0.0f, 1.0f };
+				if (normals) {
+					vertex.inNormal = {
+						normals[i * 3 + 0],
+						normals[i * 3 + 1],
+						normals[i * 3 + 2]
+					};
+				}
+				else {
+					vertex.inNormal = { 0.0f, 0.0f, 1.0f };
+				}
 
 				// Texture coordinates (optional)
-				vertex.texCoord = texCoords ? glm::vec2{ texCoords[i * 2 + 0], texCoords[i * 2 + 1] }
-				: glm::vec2{ 0.0f, 0.0f };
+				if (texCoords) {
+					vertex.texCoord = {
+						texCoords[i * 2 + 0],
+						texCoords[i * 2 + 1]
+					};
+				}
+				else {
+					vertex.texCoord = { 0.0f, 0.0f };
+				}
 
-				// Default color (same as OBJ loader)
+				// Default color
 				vertex.color = { 1.0f, 1.0f, 1.0f };
 
+				// Add unique vertex
 				if (uniqueVertices.count(vertex) == 0) {
 					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
 					vertices.push_back(vertex);
 				}
 			}
 
-			// Load indices
-			const auto& indexAccessor = model.accessors[primitive.indices];
-			const auto& indexBufferView = model.bufferViews[indexAccessor.bufferView];
-			const auto& indexBuffer = model.buffers[indexBufferView.buffer];
-			const uint8_t* indexData = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
+			if (primitive.indices >= 0) { // Check if indices exist
+				const auto& indexAccessor = model.accessors[primitive.indices];
+				const auto& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+				const auto& indexBuffer = model.buffers[indexBufferView.buffer];
+				const uint8_t* indexData = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
 
-			for (size_t i = 0; i < indexAccessor.count; ++i) {
-				uint32_t index;
-				if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-					index = reinterpret_cast<const uint16_t*>(indexData)[i];
+				for (size_t i = 0; i < indexAccessor.count; ++i) {
+					uint32_t originalIndex;
+
+					// Parse index based on component type
+					if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+						originalIndex = indexData[i];
+					}
+					else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+						originalIndex = reinterpret_cast<const uint16_t*>(indexData)[i];
+					}
+					else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+						originalIndex = reinterpret_cast<const uint32_t*>(indexData)[i];
+					}
+					else {
+						throw std::runtime_error("Unsupported index component type");
+					}
+
+					// Validate index bounds
+					if (originalIndex >= posAccessor.count) {
+						throw std::runtime_error("Index out of bounds");
+					}
+
+					// Reconstruct the vertex to find its unique index
+					Vertex vertex{};
+					vertex.pos = {
+						positions[originalIndex * 3 + 0],
+						positions[originalIndex * 3 + 1],
+						positions[originalIndex * 3 + 2]
+					};
+
+					if (normals) {
+						vertex.inNormal = {
+							normals[originalIndex * 3 + 0],
+							normals[originalIndex * 3 + 1],
+							normals[originalIndex * 3 + 2]
+						};
+					}
+					else {
+						vertex.inNormal = { 0.0f, 0.0f, 1.0f };
+					}
+
+					if (texCoords) {
+						vertex.texCoord = {
+							texCoords[originalIndex * 2 + 0],
+							texCoords[originalIndex * 2 + 1]
+						};
+					}
+					else {
+						vertex.texCoord = { 0.0f, 0.0f };
+					}
+
+					vertex.color = { 1.0f, 1.0f, 1.0f };
+
+					// Find the unique vertex index
+					auto it = uniqueVertices.find(vertex);
+					if (it != uniqueVertices.end()) {
+						indices.push_back(it->second);
+					}
+					else {
+						throw std::runtime_error("Vertex not found in unique vertices map");
+					}
 				}
-				else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-					index = reinterpret_cast<const uint32_t*>(indexData)[i];
-				}
-				else {
-					throw std::runtime_error("Unsupported index component type");
-				}
-				indices.push_back(uniqueVertices[vertices[index]]);
 			}
 		}
 	}
@@ -429,4 +513,442 @@ void ModelLoader::createPrimitive(float radius, PrimitiveModelType modelType, st
 	{
 		createPlane(radius * 2, radius * 2, 1, 1, vertices, indices);
 	}
+}
+
+GltfLoadResult ModelLoader::loadGLTFModelWithMaterials(const std::string& path, VkDevice device, VkPhysicalDevice physicalDevice, VkQueue graphicsQueue, VkCommandPool commandPool)
+{
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err, warn;
+
+	bool isBinary = (path.substr(path.find_last_of(".") + 1) == "glb");
+	bool ret = isBinary ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
+		: loader.LoadASCIIFromFile(&model, &err, &warn, path);
+
+	if (!warn.empty()) {
+		printf("glTF Warning: %s\n", warn.c_str());
+	}
+	if (!err.empty() || !ret) {
+		throw std::runtime_error("Failed to load glTF file: " + err);
+	}
+
+	GltfLoadResult result;
+
+	// --- 1. Load Textures ---
+	result.textures.resize(model.textures.size());
+	for (size_t i = 0; i < model.textures.size(); ++i) {
+		bool isSrgb = false;
+		for (const auto& mat : model.materials) {
+			if ((mat.pbrMetallicRoughness.baseColorTexture.index == i) || (mat.emissiveTexture.index == i)) {
+				isSrgb = true;
+				break;
+			}
+		}
+		std::cout << "Loading texture: " << model.images[model.textures[i].source].uri << std::endl;
+		result.textures[i] = loadGltfTexture(model, static_cast<int>(i), device, physicalDevice, graphicsQueue, commandPool, path, isSrgb);
+	}
+	// --- 2. Load Materials ---
+	result.materials.reserve(model.materials.size());
+	for (const auto& gltfMaterial : model.materials) {
+		result.materials.push_back(createMaterialFromGltf(model, gltfMaterial, result.textures, path, device, physicalDevice, graphicsQueue, commandPool));
+	}
+	if (result.materials.empty()) {
+		result.materials.push_back(createDefaultGltfMaterial("DefaultMaterial", device, physicalDevice, graphicsQueue, commandPool));
+	}
+
+	// --- 3. Load Meshes (Primitives) ---
+	for (const auto& mesh : model.meshes) {
+		for (const auto& primitive : mesh.primitives) {
+
+			// We can only process indexed geometry with positions
+			if (primitive.indices < 0 || primitive.attributes.find("POSITION") == primitive.attributes.end()) {
+				continue;
+			}
+
+			// These will store the final, de-duplicated vertex and index data for this primitive
+			std::vector<Vertex> vertices;
+			std::vector<uint32_t> indices;
+			std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+
+			// Get pointers to the raw attribute data buffers in the glTF file
+			const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
+			const auto& posBufferView = model.bufferViews[posAccessor.bufferView];
+			const float* positions = reinterpret_cast<const float*>(&model.buffers[posBufferView.buffer].data[posBufferView.byteOffset + posAccessor.byteOffset]);
+
+			const float* normals = nullptr;
+			if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
+				const auto& normAccessor = model.accessors[primitive.attributes.at("NORMAL")];
+				const auto& normBufferView = model.bufferViews[normAccessor.bufferView];
+				normals = reinterpret_cast<const float*>(&model.buffers[normBufferView.buffer].data[normBufferView.byteOffset + normAccessor.byteOffset]);
+			}
+
+			const float* texCoords = nullptr;
+			if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+				const auto& texAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
+				const auto& texBufferView = model.bufferViews[texAccessor.bufferView];
+				texCoords = reinterpret_cast<const float*>(&model.buffers[texBufferView.buffer].data[texBufferView.byteOffset + texAccessor.byteOffset]);
+			}
+
+			// Get a pointer to the raw index buffer data
+			const auto& indexAccessor = model.accessors[primitive.indices];
+			const auto& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+			const uint8_t* indexData = &model.buffers[indexBufferView.buffer].data[indexBufferView.byteOffset + indexAccessor.byteOffset];
+
+			// === The Core Logic: Build vertices on-demand from the index buffer ===
+			for (size_t i = 0; i < indexAccessor.count; ++i) {
+				// Get the index into the attribute buffers
+				uint32_t originalIndex;
+				switch (indexAccessor.componentType) {
+				case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+					originalIndex = indexData[i];
+					break;
+				case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+					originalIndex = reinterpret_cast<const uint16_t*>(indexData)[i];
+					break;
+				case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+					originalIndex = reinterpret_cast<const uint32_t*>(indexData)[i];
+					break;
+				default:
+					throw std::runtime_error("Unsupported index component type!");
+				}
+
+				// Construct a full Vertex object from the raw attribute data
+				Vertex vertex{};
+				vertex.pos = glm::make_vec3(&positions[originalIndex * 3]);
+
+				if (normals) {
+					vertex.inNormal = glm::make_vec3(&normals[originalIndex * 3]);
+				}
+				else {
+					// NOTE: Normals should ideally be calculated if missing.
+					// For now, we use a placeholder.
+					vertex.inNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+				}
+
+				if (texCoords) {
+					vertex.texCoord = glm::make_vec2(&texCoords[originalIndex * 2]);
+				}
+				else {
+					vertex.texCoord = glm::vec2(0.0f);
+				}
+
+				vertex.color = glm::vec3(1.0f); // Default white
+
+				// The de-duplication step
+				if (uniqueVertices.count(vertex) == 0) {
+					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+					vertices.push_back(vertex);
+				}
+				indices.push_back(uniqueVertices[vertex]);
+			}
+
+			// Store the processed mesh data for this primitive
+			result.meshVertices.push_back(std::move(vertices));
+			result.meshIndices.push_back(std::move(indices));
+
+			// Store the material index for this primitive
+			int materialIndex = primitive.material;
+			if (materialIndex < 0 || materialIndex >= result.materials.size()) {
+				materialIndex = 0; // Fallback to the first (or default) material
+			}
+			result.meshMaterialIndices.push_back(materialIndex);
+		}
+	}
+
+	return result;
+}
+
+std::shared_ptr<VulkanTexture> ModelLoader::loadGltfTexture(
+	const tinygltf::Model& model, 
+	int textureIndex, 
+	VkDevice device, 
+	VkPhysicalDevice physicalDevice, 
+	VkQueue graphicsQueue, 
+	VkCommandPool commandPool, 
+	const std::string& gltfFilePath,
+	bool sRGB)
+{
+
+	//std::cout << "Loading gltf texture" << std::endl;
+	if (textureIndex < 0 || textureIndex >= model.textures.size()) return nullptr;
+
+	const auto& texture = model.textures[textureIndex];
+	const auto& image = model.images[texture.source];
+
+	auto vulkanTexture = std::make_shared<VulkanTexture>();
+
+	std::string imagePath = resolveGltfTexturePath(gltfFilePath, image.uri);
+
+	try {
+		if (!imagePath.empty()) {
+			if (!std::filesystem::exists(imagePath)) {
+				std::cerr << "Warning: Texture file not found: " << imagePath << std::endl;
+				return nullptr; // Return null if file is missing
+			}
+			// Load from file
+			vulkanTexture->createTexture2D(device, physicalDevice, graphicsQueue, commandPool, imagePath, sRGB);
+
+		}
+		else if (!image.image.empty()) {
+			// Load from embedded memory
+			vulkanTexture->createTexture2DFromMemory(
+				device, physicalDevice, graphicsQueue, commandPool,
+				image.image.data(),
+				image.width, image.height, image.component, sRGB
+			);
+		}
+		else {
+			std::cerr << "Warning: Texture " << textureIndex << " has no URI and no embedded data." << std::endl;
+			return nullptr;
+		}
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Warning: Failed to load texture for " << image.name << ". Reason: " << e.what() << std::endl;
+		return nullptr;
+	}
+
+	return vulkanTexture;
+}
+
+std::shared_ptr<Material> ModelLoader::createMaterialFromGltf(
+	const tinygltf::Model& model, 
+	const tinygltf::Material& gltfMaterial, 
+	const std::vector<std::shared_ptr<VulkanTexture>>& textures, 
+	const std::string& modelPath,
+	VkDevice device,
+	VkPhysicalDevice physicalDevice,
+	VkQueue graphicsQueue, 
+	VkCommandPool commandPool
+)
+{
+	auto material = std::make_shared<Material>();
+	material->name = gltfMaterial.name.empty() ? "Unnamed_Materal" : gltfMaterial.name;
+	//material->gltfSourceFile = modelPath;
+
+	// Base Color (albedo)
+	material->uboData.baseColorFactor = glm::make_vec4(gltfMaterial.pbrMetallicRoughness.baseColorFactor.data());
+	if (gltfMaterial.pbrMetallicRoughness.baseColorTexture.index >= 0)
+	{
+		material->albedoMap = textures[gltfMaterial.pbrMetallicRoughness.baseColorTexture.index];
+	}
+	material->uboData.hasAlbedoMap = (material->albedoMap != nullptr);
+
+	// metallilc roughness
+	material->uboData.metallicFactor = static_cast<float>(gltfMaterial.pbrMetallicRoughness.metallicFactor);
+	material->uboData.roughnessFactor = static_cast<float>(gltfMaterial.pbrMetallicRoughness.roughnessFactor);
+	if (gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0)
+	{
+		material->metallicRoughnessMap = textures[gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index];
+	}
+	material->uboData.hasMetallicRoughnessMap = (material->metallicRoughnessMap != nullptr);
+	
+	// noraml map
+	if (gltfMaterial.normalTexture.index >= 0)
+	{
+		material->normalMap = textures[gltfMaterial.normalTexture.index];
+	}
+	material->uboData.hasNormalMap = (material->normalMap != nullptr);
+	// maybe implement normal scale
+
+	// Occlusion Map
+	if (gltfMaterial.occlusionTexture.index >= 0)
+	{
+		material->occlusionMap = textures[gltfMaterial.occlusionTexture.index];
+	}
+	material->uboData.hasOcclusionMap = (material->occlusionMap != nullptr);
+
+	// Emissive
+	material->uboData.emissiveFactor = glm::make_vec4(gltfMaterial.emissiveFactor.data());
+	if (gltfMaterial.emissiveTexture.index >= 0)
+	{
+		material->emissiveMap = textures[gltfMaterial.emissiveTexture.index];
+	}
+	material->uboData.hasEmissiveMap = (material->emissiveMap != nullptr);
+
+	
+	// load defaults for missing maps
+	//if (!material->albedoMap)
+	//{
+	//	std::cout << "Loading default texture for gltf albedo" << std::endl;
+	//	material->albedoMap = loadDefaultTexture("albedo", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->normalMap) {
+	//	std::cout << "Loading default texture for gltf normal" << std::endl;
+	//	material->normalMap = loadDefaultTexture("normal", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->ormMap) {
+	//	std::cout << "Loading default texture for gltf orm" << std::endl;
+	//	material->ormMap = loadDefaultTexture("orm", device, physicalDevice, graphicsQueue, commandPool);
+	//	material->useOrm = false; // Set to false if we are using the default
+	//}
+	//if (!material->aoMap) {
+	//	std::cout << "Loading default texture for gltf ao" << std::endl;
+	//	material->aoMap = loadDefaultTexture("ao", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->emissiveMap) {
+	//	std::cout << "Loading default texture for gltf emissive" << std::endl;
+	//	material->emissiveMap = loadDefaultTexture("emissive", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->roughnessMap/* && !material->useOrm*/)
+	//{
+	//	std::cout << "Loading default texture for gltf roughness" << std::endl;
+	//	material->roughnessMap = loadDefaultTexture("roughness", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->metallnessMap/* && !material->useOrm*/)
+	//{
+	//	std::cout << "Loading default texture for gltf metalness" << std::endl;
+	//	material->metallnessMap = loadDefaultTexture("metalness", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+	//if (!material->displacementMap)
+	//{
+	//	std::cout << "Loading default texture for gltf displacement" << std::endl;
+	//	material->displacementMap = loadDefaultTexture("displacement", device, physicalDevice, graphicsQueue, commandPool);
+	//}
+
+	//// material properties
+	//if (gltfMaterial.alphaMode == "OPAQUE")
+	//{
+	//	material->alphaMode = Material::AlphaMode::OPAQUE_MODE;
+	//}
+	//else if (gltfMaterial.alphaMode == "MASK")
+	//{
+	//	material->alphaMode = Material::AlphaMode::MASK_MODE;
+	//}
+	//else if (gltfMaterial.alphaMode == "BLEND")
+	//{
+	//	material->alphaMode = Material::AlphaMode::BLEND_MODE;
+	//}
+
+	//material->alphaCutoff = static_cast<float>(gltfMaterial.alphaCutoff);
+	
+	// ----------- TODO : DEBUG doublesided ---------------
+	material->doubleSided = gltfMaterial.doubleSided;
+	//std::cout << "Double sided: " << gltfMaterial.doubleSided << std::endl;
+	material->doubleSided = true;
+
+	return material;
+}
+
+std::string ModelLoader::resolveGltfTexturePath(const std::string& gltfFilePath, const std::string& textureUri)
+{
+	if (textureUri.empty())
+	{
+		return "";
+	}
+
+	std::filesystem::path texturePath(textureUri);
+	if (texturePath.is_absolute())
+	{
+		return textureUri;
+	}
+
+	if (textureUri.find("data:") == 0) // for data URIs (embedded base64)
+	{
+		std::cout << "Info: Found embedded glTF texture data. In-memory loading will be used." << std::endl;
+		return "";
+	}
+
+	// relative paths
+	std::filesystem::path modelPath(gltfFilePath);
+	std::filesystem::path modelDirectory = modelPath.parent_path();
+	std::filesystem::path fullPath = modelDirectory / textureUri;
+	std::filesystem::path normalizedPath = std::filesystem::absolute(fullPath).lexically_normal();
+	return normalizedPath.string();
+
+}
+
+std::shared_ptr<VulkanTexture> ModelLoader::loadDefaultTexture(
+	const std::string& textureType,
+	VkDevice device, 
+	VkPhysicalDevice physicalDevice, 
+	VkQueue graphicsQueue, 
+	VkCommandPool commandPool)
+{
+	std::string defaultPath;
+	bool sRGB = false;
+	if (textureType == "albedo")
+	{
+		defaultPath = "textures/defaults/default_albedo.png";
+		sRGB = true;
+	}
+	else if (textureType == "normal")
+	{
+		defaultPath = "textures/defaults/default_normal.png";
+	}
+	else if (textureType == "orm")
+	{
+		defaultPath = "textures/defaults/default_orm.png";
+	}
+	else if (textureType == "ao")
+	{
+		defaultPath = "textures/defaults/default_ao.png";
+	}
+	else if (textureType == "roughness")
+	{
+		defaultPath = "textures/defaults/default_roughness.png";
+	}
+	else if (textureType == "metalness")
+	{
+		defaultPath = "textures/defaults/default_metalness.png";
+	}
+	else if (textureType == "metallicRoughness")
+	{
+		defaultPath = "textures/defaults/default_metallic_roughness.png";
+	}
+	else if (textureType == "displacement")
+	{
+		defaultPath = "textures/defaults/default_displacement.png";
+	}
+	else if (textureType == "emissive")
+	{
+		defaultPath = "textures/defaults/default_emissive.png";
+		sRGB = true;
+	}
+	else
+	{
+		defaultPath = "textures/defaults/default_white.png";
+		sRGB = true;
+	}
+
+	auto texture = std::make_shared<VulkanTexture>();
+	
+	try 
+	{
+		texture->createTexture2D(device, physicalDevice, graphicsQueue, commandPool, defaultPath);
+		return texture;
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Warning: Failed to load default texture '" 
+			<< defaultPath << "' for type '" << textureType << "': " << e.what() << std::endl;
+		return nullptr;
+	}
+}
+
+std::shared_ptr<Material> ModelLoader::createDefaultGltfMaterial(const std::string& name, VkDevice device, VkPhysicalDevice physicalDevice, VkQueue graphicsQueue, VkCommandPool commandPool)
+{
+	std::cout << "Creating default Gltf Material" << std::endl;
+	auto material = std::make_shared<Material>();
+	material->name = name;
+	//material->useOrm = false; // Use separate textures for default material
+
+	material->albedoMap = loadDefaultTexture("albedo", device, physicalDevice, graphicsQueue, commandPool);
+	material->normalMap = loadDefaultTexture("normal", device, physicalDevice, graphicsQueue, commandPool);
+	material->occlusionMap = loadDefaultTexture("ao", device, physicalDevice, graphicsQueue, commandPool);
+	material->metallicRoughnessMap = loadDefaultTexture("metallicRoughness", device, physicalDevice, graphicsQueue, commandPool);
+	//material->metallnessMap = loadDefaultTexture("metalness", device, physicalDevice, graphicsQueue, commandPool);
+	//material->displacementMap = loadDefaultTexture("displacement", device, physicalDevice, graphicsQueue, commandPool);
+	material->emissiveMap = loadDefaultTexture("emissive", device, physicalDevice, graphicsQueue, commandPool);
+
+	//material->baseColorFactor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	//material->metallicFactor = 0.0f;
+	//material->roughnessFactor = 0.5f;
+	//material->normalScale = 1.0f;
+	//material->occlusioinStrength = 1.0f;
+	//material->emissiveFactor = glm::vec3(0.0f);
+	//material->alphaMode = Material::AlphaMode::OPAQUE_MODE;
+	//material->alphaCutoff = 0.5f;
+	material->doubleSided = false;
+
+	return material;
 }

@@ -194,6 +194,7 @@
     <ClInclude Include="ImGuiManager.h" />
     <ClInclude Include="Lights.h" />
     <ClInclude Include="Material.h" />
+    <ClInclude Include="MaterialPBR.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Renderable.h" />
     <ClInclude Include="VulkanBuffer.h" />

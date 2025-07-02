@@ -196,9 +196,8 @@ void ImGuiManager::drawControlPanel(SceneDebugContextPacket& sceneDebugContextPa
 {
     ImGui::Begin("Engine Controls");
     ImGui::Checkbox("Wireframe Mode", &sceneDebugContextPacket.wireframeMode);
-    //ImGui::Text("Tessellation Level: %.1f", tessUboData.tessellationLevel);
-    ImGui::SliderFloat("Tessellation Level", &sceneDebugContextPacket.tessellationUbo.tessellationLevel, 1.0f, 64.0f);
-    ImGui::SliderFloat("Displacement Scale", &sceneDebugContextPacket.tessellationUbo.displacementScale, 0.0f, 0.2f);
+    /*ImGui::SliderFloat("Tessellation Level", &sceneDebugContextPacket.tessellationUbo.tessellationLevel, 1.0f, 64.0f);
+    ImGui::SliderFloat("Displacement Scale", &sceneDebugContextPacket.tessellationUbo.displacementScale, 0.0f, 0.2f);*/
     ImGui::End();
 }
 
@@ -216,3 +215,12 @@ void ImGuiManager::drawLightingPanel(SceneDebugContextPacket& sceneDebugContextP
 
     ImGui::End();
 }
+
+void ImGuiManager::drawObjectsPanel(SceneDebugContextPacket& sceneDebugContextPacket)
+{
+    ImGui::Begin("Objects");
+
+    ImGui::End();
+}
+
+

@@ -21,16 +21,3 @@ void main() {
     vec2 uv = sampleSphericalMap(normalize(inLocalPos));
     outColor = texture(equirectangularMap, uv);
 }
-
-
-// #version 450
-
-// layout (location = 0) out vec4 outColor;
-
-// // input variables are now unused
-
-// void main()
-// {
-//     // Completely ignore the HDR texture and just output solid red.
-//     outColor = vec4(1.0, 0.0, 0.0, 1.0); 
-// }

@@ -36,169 +36,250 @@ void AssetManager::cleanup()
     m_Textures.clear();
 }
 
-RenderableObject AssetManager::createRenderableObject(const SceneObjectDefinition& def)
-{
-    std::shared_ptr<MeshData> mesh = getMesh(def);
-    std::shared_ptr<Material> material = getMaterial(def);
+//RenderableObject AssetManager::createRenderableObject(const SceneObjectDefinition& def)
+//{
+//    std::shared_ptr<MeshData> mesh = getMesh(def);
+//    std::shared_ptr<Material> material = getMaterial(def);
+//
+//    RenderableObject renderable{};
+//    renderable.vertexBuffer = mesh->vertexBuffer.get(); //raw pointer
+//    renderable.indexBuffer = mesh->indexBuffer.get();
+//    renderable.indexCount = mesh->indexCount;
+//    renderable.material = material;
+//
+//    // Calculate the object's model matrix from its definition
+//    glm::mat4 model = glm::mat4(1.0f);
+//    model = glm::translate(model, def.position);
+//    model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
+//    model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
+//    model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
+//    model = glm::scale(model, def.scale);
+//    renderable.modelMatrix = model;
+//
+//    return renderable;
+//}
 
-    RenderableObject renderable{};
-    renderable.vertexBuffer = mesh->vertexBuffer.get(); //raw pointer
-    renderable.indexBuffer = mesh->indexBuffer.get();
-    renderable.indexCount = mesh->indexCount;
-    renderable.material = material;
+//std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def)
+//{
+//    std::string meshKey = def.meshPath;
+//    if (meshKey.empty())
+//    {
+//        meshKey = "primitive_mesh_" + def.name;
+//    }
+//    if (m_Meshes.count(meshKey))
+//    {
+//        return m_Meshes.at(meshKey);
+//    }
+//
+//    std::cout << "Loading new mesh: " << (def.meshPath.empty() ? def.name + " (Generated Primitive)" : def.meshPath) << std::endl;
+//
+//    std::vector<Vertex> vertices;
+//    std::vector<uint32_t> indices;
+//
+//    if (def.meshPath.empty())
+//    {
+//        if (def.defaultModel == PrimitiveModelType::CREATE_SPHERE)
+//        {
+//            ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
+//        }
+//        else if (def.defaultModel == PrimitiveModelType::CREATE_PLANE)
+//        {
+//            ModelLoader::createPlane(50, 50, 32, 32, vertices, indices);
+//        }
+//        else if (def.defaultModel == PrimitiveModelType::CREATE_CUBE)
+//        {
+//            ModelLoader::createCube(2.5, 1, vertices, indices);
+//        }
+//        else
+//        {
+//            throw std::runtime_error("Invalid PrimitiveModelType in SceneObjectDefinition");
+//        }
+//    }
+//    else
+//    {
+//        if (def.meshFileType == MeshFileType::FILE_OBJ)
+//        {
+//            ModelLoader::loadModel(def.meshPath, vertices, indices);
+//        }
+//        else if (def.meshFileType == MeshFileType::FILE_GLTF)
+//        {
+//            ModelLoader::loadGLTFModel(def.meshPath, vertices, indices);
+//        }
+//        else
+//        {
+//            throw std::runtime_error("Invalid MeshFileType in SceneObjectDefinition");
+//        }
+//    }
+//
+//    auto newMesh = std::make_shared<MeshData>();
+//    newMesh->vertexBuffer = std::make_unique<VulkanVertexBuffer>();
+//    newMesh->vertexBuffer->create(m_pDevice->getLogicalDevice(), m_pDevice->getPhysicalDevice(), m_pDevice->getGraphicsQueue(), m_pCommandPool->getVkCommandPool(), vertices);
+//
+//    newMesh->indexBuffer = std::make_unique<VulkanIndexBuffer>();
+//    newMesh->indexBuffer->create(m_pDevice->getLogicalDevice(), m_pDevice->getPhysicalDevice(), m_pDevice->getGraphicsQueue(), m_pCommandPool->getVkCommandPool(), indices);
+//
+//    newMesh->indexCount = static_cast<uint32_t>(indices.size());
+//
+//    m_Meshes[meshKey] = newMesh;
+//
+//    return newMesh;
+//}
 
-    // Calculate the object's model matrix from its definition
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, def.position);
-    model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::scale(model, def.scale);
-    renderable.modelMatrix = model;
+//std::shared_ptr<Material> AssetManager::getMaterial(const SceneObjectDefinition& def)
+//{
+//    if (m_Materials.count(def.materialName))
+//    {
+//        return m_Materials.at(def.materialName);
+//    }
+//
+//    std::cout << "Creating new material: " << def.materialName << std::endl;
+//
+//    auto newMaterial = std::make_shared<Material>();
+//    newMaterial->name = def.materialName;
+//
+//    newMaterial->albedoMap = loadTexture(def.albedoPath, "texture/defaults/default_albedo.png", true);
+//    newMaterial->normalMap = loadTexture(def.normalPath, "textures/default_normal.png");
+//
+//    if (def.useOrm)
+//    {
+//        newMaterial->ormMap = loadTexture(def.ormPath, "textures/default_orm.png");
+//        newMaterial->aoMap = loadTexture("textures/defaults/default_ao.png", "textures/defaults/default_ao.png");
+//        newMaterial->roughnessMap = loadTexture("textures/defaults/default_roughness.png", "textures/defaults/default_roughness.png");
+//        newMaterial->metallnessMap = loadTexture("textures/defaults/default_metalness.png", "textures/defaults/default_metalness.png");
+//    }
+//    else
+//    {
+//        newMaterial->ormMap = loadTexture("textures/default_orm.png", "textures/default_orm.png");
+//        newMaterial->aoMap = loadTexture(def.aoPath, "textures/defaults/default_ao.png");
+//        newMaterial->roughnessMap = loadTexture(def.roughnessPath, "textures/defaults/default_roughness.png");
+//        newMaterial->metallnessMap = loadTexture(def.metallnessPath, "textures/defaults/default_metalness.png");
+//    }
+//
+//    
+//    newMaterial->displacementMap = loadTexture(def.displacementPath, "textures/default_displacement.png"); // Use a neutral default for displacement
+//
+//    m_Materials[def.materialName] = newMaterial;
+//    return newMaterial;
+//}
 
-    return renderable;
-}
-
-std::shared_ptr<MeshData> AssetManager::getMesh(const SceneObjectDefinition& def)
-{
-    // Use the mesh path as a key, but if it's empty (for a primitive),
-    // generate a unique key from the object's name to enable caching.
-    std::string meshKey = def.meshPath;
-    if (meshKey.empty())
-    {
-        // Example key for a sphere named "MetalBall": "primitive_mesh_MetalBall"
-        meshKey = "primitive_mesh_" + def.name;
-    }
-
-    // Check if a mesh with this key is already cached.
-    if (m_Meshes.count(meshKey))
-    {
-        return m_Meshes.at(meshKey);
-    }
-
-    std::cout << "Loading new mesh: " << (def.meshPath.empty() ? def.name + " (Generated Primitive)" : def.meshPath) << std::endl;
-
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-
-    if (def.meshPath.empty())
-    {
-        if (def.defaultModel == PrimitiveModelType::CREATE_SPHERE)
-        {
-            ModelLoader::createSphere(2.5, 32, 32, vertices, indices);
-        }
-        else if (def.defaultModel == PrimitiveModelType::CREATE_PLANE)
-        {
-            ModelLoader::createPlane(50, 50, 32, 32, vertices, indices);
-        }
-        else if (def.defaultModel == PrimitiveModelType::CREATE_CUBE)
-        {
-            ModelLoader::createCube(2.5, 1, vertices, indices);
-            //ModelLoader::createCube(2.5, vertices, indices);
-        }
-        else
-        {
-            throw std::runtime_error("Invalid PrimitiveModelType in SceneObjectDefinition");
-        }
-    }
-    else
-    {
-        if (def.meshFileType == MeshFileType::FILE_OBJ)
-        {
-            ModelLoader::loadModel(def.meshPath, vertices, indices);
-        }
-        else if (def.meshFileType == MeshFileType::FILE_GLTF)
-        {
-            ModelLoader::loadGLTFModel(def.meshPath, vertices, indices);
-        }
-        else
-        {
-            throw std::runtime_error("Invalid MeshFileType in SceneObjectDefinition");
-        }
-    }
-
-    auto newMesh = std::make_shared<MeshData>();
-    newMesh->vertexBuffer = std::make_unique<VulkanVertexBuffer>();
-    newMesh->vertexBuffer->create(m_pDevice->getLogicalDevice(), m_pDevice->getPhysicalDevice(), m_pDevice->getGraphicsQueue(), m_pCommandPool->getVkCommandPool(), vertices);
-
-    newMesh->indexBuffer = std::make_unique<VulkanIndexBuffer>();
-    newMesh->indexBuffer->create(m_pDevice->getLogicalDevice(), m_pDevice->getPhysicalDevice(), m_pDevice->getGraphicsQueue(), m_pCommandPool->getVkCommandPool(), indices);
-
-    newMesh->indexCount = static_cast<uint32_t>(indices.size());
-
-    // **THE FIX**: Always cache the newly created mesh using its unique key.
-    m_Meshes[meshKey] = newMesh;
-
-    return newMesh;
-}
-
-std::shared_ptr<Material> AssetManager::getMaterial(const SceneObjectDefinition& def)
-{
-    if (m_Materials.count(def.materialName))
-    {
-        return m_Materials.at(def.materialName);
-    }
-
-    std::cout << "Creating new material: " << def.materialName << std::endl;
-
-    auto newMaterial = std::make_shared<Material>();
-    newMaterial->name = def.materialName;
-
-    newMaterial->albedoMap = loadTexture(def.albedoPath);
-    newMaterial->normalMap = loadTexture(def.normalPath, "textures/default_normal.png");
-
-    if (def.useOrm)
-    {
-        newMaterial->ormMap = loadTexture(def.ormPath, "textures/default_orm.png");
-        newMaterial->aoMap = loadTexture("textures/defaults/default_ao.png", "textures/defaults/default_ao.png");
-        newMaterial->roughnessMap = loadTexture("textures/defaults/default_roughness.png", "textures/defaults/default_roughness.png");
-        newMaterial->metallnessMap = loadTexture("textures/defaults/default_metalness.png", "textures/defaults/default_metalness.png");
-    }
-    else
-    {
-        newMaterial->ormMap = loadTexture("textures/default_orm.png", "textures/default_orm.png");
-        newMaterial->aoMap = loadTexture(def.aoPath, "textures/defaults/default_ao.png");
-        newMaterial->roughnessMap = loadTexture(def.roughnessPath, "textures/defaults/default_roughness.png");
-        newMaterial->metallnessMap = loadTexture(def.metallnessPath, "textures/defaults/default_metalness.png");
-    }
-
-    
-    newMaterial->displacementMap = loadTexture(def.displacementPath, "textures/default_displacement.png"); // Use a neutral default for displacement
-
-    m_Materials[def.materialName] = newMaterial;
-    return newMaterial;
-}
-
-std::shared_ptr<VulkanTexture> AssetManager::loadTexture(const std::string& path, const std::string& defaultPath)
-{
-    const std::string& finalPath = (path.empty() && !defaultPath.empty()) ? defaultPath : path;
-
-    if (finalPath.empty())
-    {
-        throw std::runtime_error("Texture path and default path are both empty.");
-    }
-
-    if (m_Textures.count(finalPath))
-    {
-        return m_Textures.at(finalPath);
-    }
-
-    std::cout << "Loading new texture: " << finalPath << std::endl;
-
-    auto newTexture = std::make_shared<VulkanTexture>();
-    newTexture->createTexture2D(
-        m_pDevice->getLogicalDevice(),
-        m_pDevice->getPhysicalDevice(),
-        m_pDevice->getGraphicsQueue(),
-        m_pCommandPool->getVkCommandPool(),
-        finalPath
-    );
-
-    m_Textures[finalPath] = newTexture;
-    return newTexture;
-}
+//std::shared_ptr<VulkanTexture> AssetManager::loadTexture(const std::string& path, const std::string& defaultPath, bool sRGB)
+//{
+//    const std::string& finalPath = (path.empty() && !defaultPath.empty()) ? defaultPath : path;
+//
+//    if (finalPath.empty())
+//    {
+//        throw std::runtime_error("Texture path and default path are both empty.");
+//    }
+//
+//    if (m_Textures.count(finalPath))
+//    {
+//        return m_Textures.at(finalPath);
+//    }
+//
+//    std::cout << "Loading new texture: " << finalPath << std::endl;
+//
+//    auto newTexture = std::make_shared<VulkanTexture>();
+//    newTexture->createTexture2D(
+//        m_pDevice->getLogicalDevice(),
+//        m_pDevice->getPhysicalDevice(),
+//        m_pDevice->getGraphicsQueue(),
+//        m_pCommandPool->getVkCommandPool(),
+//        finalPath,
+//        sRGB
+//    );
+//
+//    m_Textures[finalPath] = newTexture;
+//    return newTexture;
+//}
 
 std::map<std::string, std::shared_ptr<Material>>& AssetManager::getMaterials()
 {
     return m_Materials;
+}
+
+std::shared_ptr<ModelData> AssetManager::loadGltfModel(const std::string& path)
+{
+    if (m_Models.count(path))
+    {
+        return m_Models[path];
+    }
+
+    std::cout << "Loading glTF model with materials: " << path << std::endl;
+
+    auto gltfResult = ModelLoader::loadGLTFModelWithMaterials(
+        path,
+        m_pDevice->getLogicalDevice(),
+        m_pDevice->getPhysicalDevice(),
+        m_pDevice->getGraphicsQueue(),
+        m_pCommandPool->getVkCommandPool()
+    );
+
+    auto modelData = std::make_shared<ModelData>();
+    modelData->materials = std::move(gltfResult.materials);
+    modelData->meshMaterialIndices = std::move(gltfResult.meshMaterialIndices);
+
+    for (const auto& material : modelData->materials)
+    {
+        if (m_Materials.find(material->name) == m_Materials.end())
+        {
+            m_Materials[material->name] = material;
+        }
+    }
+
+    for (size_t i = 0; i < gltfResult.meshVertices.size(); ++i)
+    {
+        MeshData meshData;
+        meshData.vertexBuffer = std::make_unique<VulkanVertexBuffer>();
+        meshData.vertexBuffer->create(
+            m_pDevice->getLogicalDevice(),
+            m_pDevice->getPhysicalDevice(),
+            m_pDevice->getGraphicsQueue(),
+            m_pCommandPool->getVkCommandPool(),
+            gltfResult.meshVertices[i]
+        );
+
+        meshData.indexBuffer = std::make_unique<VulkanIndexBuffer>();
+        meshData.indexBuffer->create(
+            m_pDevice->getLogicalDevice(),
+            m_pDevice->getPhysicalDevice(),
+            m_pDevice->getGraphicsQueue(),
+            m_pCommandPool->getVkCommandPool(),
+            gltfResult.meshIndices[i]
+        );
+
+        meshData.indexCount = static_cast<uint32_t>(gltfResult.meshIndices[i].size());
+        modelData->meshes.push_back(std::move(meshData));
+    }
+
+    m_Models[path] = modelData;
+    return modelData;
+}
+
+std::vector<RenderableObject> AssetManager::createRenderableObjectsFromGltf(const SceneObjectDefinition& def)
+{
+    auto modelData = loadGltfModel(def.meshPath);
+    std::vector<RenderableObject> renderables;
+    for (size_t i = 0; i < modelData->meshes.size(); ++i)
+    {
+        RenderableObject renderable{};
+        renderable.vertexBuffer = modelData->meshes[i].vertexBuffer.get();
+        renderable.indexBuffer = modelData->meshes[i].indexBuffer.get();
+        renderable.indexCount = modelData->meshes[i].indexCount;
+
+        int materialIndex = modelData->meshMaterialIndices[i];
+        renderable.material = modelData->materials[materialIndex];
+
+        // applying transformations here (maybe i'll handle them elsewhere later)
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, def.position);
+        model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::scale(model, def.scale);
+        renderable.modelMatrix = model;
+
+        renderables.push_back(renderable);
+    }
+
+    return renderables;
 }

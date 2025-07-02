@@ -9,10 +9,6 @@
 #include <vulkan/vulkan.h>
 
 #include "VulkanGlobals.h"
-//#include "VulkanVertexBuffer.h"
-//#include "VulkanIndexBuffer.h"
-//#include "VulkanTexture.h"
-//#include "VulkanUniformBuffers.h"
 #include "Material.h"
 #include "ModelLoader.h"
 
@@ -74,18 +70,21 @@ struct RenderPacket {
     std::vector<RenderableObject> pbrRenderables;
     VkDeviceSize dynamicUboAlignment;
     VkPipeline pbrPipeline;
+    VkPipeline pbrPipeline_doubleSided;
     VkPipelineLayout pbrLayout;
 
     std::optional<SkyboxData> skyboxData;
     // shadow pass for future
 };
 
-struct TessellationUBO;
+//struct TessellationUBO;
 struct SceneLightingUBO;
+
 struct SceneDebugContextPacket {
     bool& wireframeMode;
-    TessellationUBO& tessellationUbo;
+    //TessellationUBO& tessellationUbo;
     SceneLightingUBO& sceneLighingUbo;
     Camera* mainCamera = nullptr;
     float deltaTime = 0.0f;
+    std::vector<RenderableObject>& pbrRenderables;
 };
