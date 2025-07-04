@@ -54,7 +54,7 @@ public:
 	~VulkanUniformBuffers();
 
 	void create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames, 
-		VkDeviceSize totalBufferSize,
+		VkDeviceSize perFrameBufferSize,
 		bool isDynamic = false);
 
 	void destroy();

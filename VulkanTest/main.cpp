@@ -45,6 +45,7 @@
 #include "VulkanSyncObjects.h"
 #include "VulkanRenderer.h"
 #include "ModelLoader.h"
+#include "utils.h"
 
 #include "Camera.h"
 #include "Renderable.h"
@@ -112,7 +113,7 @@ private:
 	std::unique_ptr<VulkanDescriptorPool> descriptorPool;
 
 	std::unique_ptr<VulkanDescriptorSetLayout> m_pbrDescriptorSetLayout;
-	std::unique_ptr<VulkanDescriptorSets> m_pbrDescriptorSets;
+	//std::unique_ptr<VulkanDescriptorSets> m_pbrDescriptorSets;
 	std::unique_ptr<VulkanPipelineLayout> m_pbrPipelineLayout;
 
 	std::unique_ptr<VulkanDescriptorSetLayout> m_skyboxDescriptorSetLayout;
@@ -120,8 +121,8 @@ private:
 	std::unique_ptr<VulkanPipelineLayout> m_skyboxPipelineLayout;
 	std::unique_ptr<VulkanVertexBuffer> m_skyboxCubeVertexBuffer;
 
-	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
-	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipeline_doubleSided;
+	//std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineFill;
+	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelinePBR;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineWireframe;
 	bool m_WireframeMode = false;
 	std::unique_ptr<VulkanGraphicsPipeline> m_GraphicsPipelineSkybox;
@@ -238,19 +239,21 @@ private:
 		m_skyboxPipelineLayout->create(devices->getLogicalDevice(), m_skyboxDescriptorSetLayout->getVkDescriptorSetLayout());
 
 		// --- Graphics Pipieline ---
-		m_GraphicsPipelineFill = std::make_unique<VulkanGraphicsPipeline>();
-		m_GraphicsPipelineFill->create(
-			devices->getLogicalDevice(), 
-			m_pbrPipelineLayout->getVkPipelineLayout(),
-			renderPass->getVkRenderPass(), 
-			"shaders/vert.spv", 
-			"shaders/frag.spv",
-			//"shaders/tess.tesc.spv",
-			//"shaders/tess.tese.spv",
-			VK_POLYGON_MODE_FILL
-		);
-		m_GraphicsPipeline_doubleSided = std::make_unique<VulkanGraphicsPipeline>();
-		m_GraphicsPipeline_doubleSided->create(
+		//m_GraphicsPipelineFill = std::make_unique<VulkanGraphicsPipeline>();
+		//m_GraphicsPipelineFill->create(
+		//	devices->getLogicalDevice(), 
+		//	m_pbrPipelineLayout->getVkPipelineLayout(),
+		//	renderPass->getVkRenderPass(), 
+		//	"shaders/vert.spv", 
+		//	"shaders/frag.spv",
+		//	//"shaders/tess.tesc.spv",
+		//	//"shaders/tess.tese.spv",
+		//	VK_POLYGON_MODE_FILL,
+		//	VK_CULL_MODE_BACK_BIT,
+		//	VK_FRONT_FACE_CLOCKWISE
+		//);
+		m_GraphicsPipelinePBR = std::make_unique<VulkanGraphicsPipeline>();
+		m_GraphicsPipelinePBR->create(
 			devices->getLogicalDevice(),
 			m_pbrPipelineLayout->getVkPipelineLayout(),
 			renderPass->getVkRenderPass(),
@@ -259,8 +262,9 @@ private:
 			//"shaders/tess.tesc.spv",
 			//"shaders/tess.tese.spv",
 			VK_POLYGON_MODE_FILL,
-			//VK_CULL_MODE_NONE
-			VK_CULL_MODE_FRONT_BIT
+			VK_CULL_MODE_NONE,
+			//VK_CULL_MODE_BACK_BIT,
+			VK_FRONT_FACE_COUNTER_CLOCKWISE
 		);
 
 		VkPhysicalDeviceFeatures deviceFeatures;
@@ -276,7 +280,9 @@ private:
 				"shaders/wireframe.frag.spv",
 				//"shaders/tess.tesc.spv",
 				//"shaders/tess.tese.spv",
-				VK_POLYGON_MODE_LINE
+				VK_POLYGON_MODE_LINE,
+				VK_CULL_MODE_BACK_BIT,
+				VK_FRONT_FACE_COUNTER_CLOCKWISE
 			);
 		}
 
@@ -307,8 +313,33 @@ private:
 
 		loadAssetsAndCreateRenderables();
 		
+
+		// --- 1. Define Counts ---
+		uint32_t materialCount = static_cast<uint32_t>(m_AssetManager->getMaterials().size());
+		uint32_t framesInFlight = VulkanGlobals::MAX_FRAMES_IN_FLIGHT;
+		const uint32_t SAMPLERS_PER_PBR_SET = 8; // Because your layout still has the separate occlusion sampler
+
+		// --- 2. Calculate Per-Category Set Counts ---
+		uint32_t pbrMaterialSets = materialCount * framesInFlight;
+		uint32_t skyboxSets = framesInFlight;
+		uint32_t iblConversionSets = 3;
+		uint32_t totalSets = pbrMaterialSets + skyboxSets + iblConversionSets;
+
+		// --- 3. Calculate Total Per-Type Descriptor Needs ---
+		uint32_t totalUbos = (3 * pbrMaterialSets) + (1 * skyboxSets) + 2; // PBR UBOs + Skybox UBO + 2 for IBL gens
+		uint32_t totalDynamicUbos = 1 * pbrMaterialSets;                  // PBR Dynamic UBO
+		uint32_t totalSamplers = (SAMPLERS_PER_PBR_SET * pbrMaterialSets) + (1 * skyboxSets) + 3; // PBR Samplers + Skybox Sampler + 3 for IBL gens
+
+		// --- 4. Create the Pool Size Vector ---
+		std::vector<VkDescriptorPoolSize> poolSizes = {
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, totalUbos },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, totalDynamicUbos },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, totalSamplers }
+		};
+	
 		descriptorPool = std::make_unique<VulkanDescriptorPool>(); // load descriptor pool after populating renderableObjects
-		descriptorPool->create(devices->getLogicalDevice(), VulkanGlobals::MAX_FRAMES_IN_FLIGHT, static_cast<uint32_t>(renderableObjects.size()));
+		// materials * frames (maxsets) + skybox * frames + 3 conversion sets
+		descriptorPool->create(devices->getLogicalDevice(), totalSets, poolSizes);
 
 		auto hdrSourceTexture = std::make_unique <VulkanTexture>();
 		hdrSourceTexture->createTextureHDR(devices->getLogicalDevice(), devices->getPhysicalDevice(), devices->getGraphicsQueue(), commandPool->getVkCommandPool(), "textures/skybox/kloppenheim_06_puresky_4k.hdr");
@@ -339,13 +370,19 @@ private:
 		sceneLights.dirLight.direction = glm::normalize(glm::vec4(-0.5, -1.0f, -0.5f, 0.0f));
 		sceneLights.dirLight.color = glm::vec4(1.0f, 1.0f, 1.0f, 10.0f); //w intensity
 
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(devices->getPhysicalDevice(), &properties);
+		size_t minUboAlignment = properties.limits.minUniformBufferOffsetAlignment;
+		size_t alignedMaterialUboSize = getAlignedUboSize(sizeof(MaterialUBO), minUboAlignment);
+		VkDeviceSize totalMaterialUboSize = alignedMaterialUboSize * m_AssetManager->getMaterials().size();
 		materialUboManager = std::make_unique<VulkanUniformBuffers>();
 		VkDeviceSize materialUboSize = sizeof(MaterialUBO) * m_AssetManager->getMaterials().size();
 		materialUboManager->create(
 			devices->getLogicalDevice(),
 			devices->getPhysicalDevice(),
 			VulkanGlobals::MAX_FRAMES_IN_FLIGHT,
-			materialUboSize,
+			//materialUboSize,
+			totalMaterialUboSize,
 			false
 		);
 		// populate materialUbo
@@ -355,7 +392,7 @@ private:
 			for (int frame = 0; frame < VulkanGlobals::MAX_FRAMES_IN_FLIGHT; ++frame)
 			{
 				char* mappedData = static_cast<char*>(materialUboManager->getMappedMemory(frame));
-				memcpy(mappedData + (materialIndex * sizeof(MaterialUBO)), &material->uboData, sizeof(MaterialUBO));
+				memcpy(mappedData + (materialIndex * alignedMaterialUboSize), &material->uboData, sizeof(MaterialUBO));
 			}
 			materialIndex++;
 		}
@@ -377,8 +414,8 @@ private:
 		iblPacket.brdfLutImageView = brdfLut->getImageView();
 		iblPacket.brdfLutSampler = brdfLut->getSampler();
 
-		m_pbrDescriptorSets = std::make_unique<VulkanDescriptorSets>();
-		m_pbrDescriptorSets->createForMaterials(
+		//m_pbrDescriptorSets = std::make_unique<VulkanDescriptorSets>();
+		VulkanDescriptorSets::createForMaterials(
 			devices->getLogicalDevice(),
 			descriptorPool->getVkDescriptorPool(),
 			m_pbrDescriptorSetLayout->getVkDescriptorSetLayout(),
@@ -388,7 +425,8 @@ private:
 			lightingUboManager->getBuffers(),
 			materialUboManager->getBuffers(),
 			m_AssetManager->getMaterials(),
-			iblPacket
+			iblPacket,
+			alignedMaterialUboSize
 		);
 
 		m_skyboxDescriptorSets = std::make_unique<VulkanDescriptorSets>();
@@ -441,7 +479,7 @@ private:
 			45.0f,                             // fieldOfView
 			swapChainObj->getExtent().width / (float)swapChainObj->getExtent().height, // aspectRatioF
 			0.1f,                              // nearF
-			100.0f                              // farF
+			500.0f                              // farF
 		);
 	}
 
@@ -485,7 +523,7 @@ private:
 
 			VkPipeline pipelineToUse = m_WireframeMode
 				? m_GraphicsPipelineWireframe->getVkPipeline()
-				: m_GraphicsPipelineFill->getVkPipeline();
+				: m_GraphicsPipelinePBR->getVkPipeline();
 
 			SkyboxData skyboxDataPacket{};
 			skyboxDataPacket.pipeline = m_GraphicsPipelineSkybox->getVkPipeline();
@@ -496,7 +534,7 @@ private:
 
 			RenderPacket renderPacket{};
 			renderPacket.pbrPipeline = pipelineToUse;
-			renderPacket.pbrPipeline_doubleSided = m_GraphicsPipeline_doubleSided->getVkPipeline();
+			//renderPacket.pbrPipeline_doubleSided = m_GraphicsPipeline_doubleSided->getVkPipeline();
 			renderPacket.pbrLayout = m_pbrPipelineLayout->getVkPipelineLayout();
 			renderPacket.pbrRenderables = renderableObjects;
 			renderPacket.dynamicUboAlignment = objectDataDUBManager->getDynamicAlignment();
@@ -710,17 +748,17 @@ private:
 		if (syncObjects) syncObjects->destroy();
 		syncObjects.reset();
 
-		if (m_pbrDescriptorSets) m_pbrDescriptorSets->destroy();
-		m_pbrDescriptorSets.reset();
+	/*	if (m_pbrDescriptorSets) m_pbrDescriptorSets->destroy();
+		m_pbrDescriptorSets.reset();*/
 
 		if (descriptorPool) descriptorPool->destroy();
 		descriptorPool.reset();
 
-		if (m_GraphicsPipelineFill) m_GraphicsPipelineFill->destroy();
-		m_GraphicsPipelineFill.reset();
+	/*	if (m_GraphicsPipelineFill) m_GraphicsPipelineFill->destroy();
+		m_GraphicsPipelineFill.reset();*/
 
-		if (m_GraphicsPipeline_doubleSided) m_GraphicsPipeline_doubleSided->destroy();
-		m_GraphicsPipeline_doubleSided.reset();
+		if (m_GraphicsPipelinePBR) m_GraphicsPipelinePBR->destroy();
+		m_GraphicsPipelinePBR.reset();
 
 		if (m_GraphicsPipelineWireframe) m_GraphicsPipelineWireframe->destroy();
 		m_GraphicsPipelineWireframe.reset();
@@ -775,31 +813,6 @@ private:
 		{
 			glfwSetInputMode(window->getGlfwWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
-
-		//// toggle wireframemode
-		//if (window->isKeyTriggered(GLFW_KEY_M))
-		//{
-		//	if (m_GraphicsPipelineWireframe)
-		//	{
-		//		m_WireframeMode = !m_WireframeMode;
-		//	}
-		//}
-
-		//// adjust tessellation
-		//if (window->isKeyTriggered(GLFW_KEY_UP))
-		//{
-		//	if (tessLevelIndex < tessLevelValue.size() - 1)
-		//	{
-		//		tessLevelIndex += 1;
-		//	}
-		//}
-		//if (window->isKeyTriggered(GLFW_KEY_DOWN))
-		//{
-		//	if (tessLevelIndex > 0)
-		//	{
-		//		tessLevelIndex -= 1;
-		//	}
-		//}
 	}
 	
 
@@ -914,27 +927,49 @@ private:
 		//GroundBall.useOrm = false;
 		//GroundBall.position = glm::vec3(0.0, 0.0, 0.0);
 
+		SceneObjectDefinition damagedHelmet{};
+		damagedHelmet.meshFileType = MeshFileType::FILE_GLTF;
+		damagedHelmet.name = "damagedHelmet";
+		damagedHelmet.meshPath = "models/gltf/DamagedHelmet/DamagedHelmet.gltf";
+		damagedHelmet.rotationAngles = glm::vec3(0.0f, 0.0f, 0.0f);
+
+		SceneObjectDefinition metallicBall{};
+		metallicBall.meshFileType = MeshFileType::FILE_GLTF;
+		metallicBall.name = "metallicBall";
+		metallicBall.meshPath = "models/gltf/CompareMetallic.glb";
+		metallicBall.rotationAngles = glm::vec3(0.0f, 0.0f, 0.0f);
+		metallicBall.position = glm::vec3(-10.0f, 0.0f, 0.0f);
+
+		SceneObjectDefinition emissiveBall{};
+		emissiveBall.meshFileType = MeshFileType::FILE_GLTF;
+		emissiveBall.name = "metallicBall";
+		emissiveBall.meshPath = "models/gltf/CompareEmissiveStrength.glb";
+		emissiveBall.rotationAngles = glm::vec3(0.0f, 0.0f, 0.0f);
+		emissiveBall.position = glm::vec3(-5.0f, 0.0f, 0.0f);
+
+		SceneObjectDefinition roughnessBall{};
+		roughnessBall.meshFileType = MeshFileType::FILE_GLTF;
+		roughnessBall.name = "metallicBall";
+		roughnessBall.meshPath = "models/gltf/CompareRoughness.glb";
+		roughnessBall.rotationAngles = glm::vec3(0.0f, 0.0f, 0.0f);
+		roughnessBall.position = glm::vec3(-15.0f, 0.0f, 0.0f);
+		
 		SceneObjectDefinition fruitBasket{};
 		fruitBasket.meshFileType = MeshFileType::FILE_GLTF;
-		fruitBasket.name = "fruitBasket_test";
-		fruitBasket.meshPath = "models/gltf/DamagedHelmet/DamagedHelmet.gltf";
-		//fruitBasket.meshPath = "models/gltf/DamagedHelmet.gltf";
-		//fruitBasket.meshPath = "models/gltf/CompareMetallic.glb";
-		//fruitBasket.scale = glm::vec3(1); // does not seem to work...?
-		
+		fruitBasket.name = "fruitBasket";
+		fruitBasket.meshPath = "models/gltf/CompareAmbientOcclusion/CompareAmbientOcclusion.gltf";
+		fruitBasket.position = glm::vec3(10.0f, 0.0f, 0.0f);
+		fruitBasket.scale = glm::vec3(10.0f);
 
 
 		std::vector<SceneObjectDefinition> sceneDefinitions =
 		{
-			//TileBall,
-			//MetalBall2,
-			//GoldTileBall,
-			//MarbleBall,
-			//GroundBall,
-			fruitBasket // Validation errors regarding descriptor sets pop up when I include this glTF
+			damagedHelmet,
+			metallicBall,
+			emissiveBall,
+			roughnessBall,
+			fruitBasket
 		};
-
-		// The AssetManager handles all the complexity of caching and resource creation.
 		for (const auto& def : sceneDefinitions)
 		{
 			if (def.meshFileType == MeshFileType::FILE_GLTF)
@@ -942,10 +977,6 @@ private:
 				auto gltfRenderables = m_AssetManager->createRenderableObjectsFromGltf(def);
 				renderableObjects.insert(renderableObjects.end(), gltfRenderables.begin(), gltfRenderables.end());
 			}
-			/*else
-			{
-				renderableObjects.push_back(m_AssetManager->createRenderableObject(def));
-			}*/
 		}
 	}
 

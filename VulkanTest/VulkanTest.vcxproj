@@ -197,6 +197,7 @@
     <ClInclude Include="MaterialPBR.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Renderable.h" />
+    <ClInclude Include="utils.h" />
     <ClInclude Include="VulkanBuffer.h" />
     <ClInclude Include="VulkanCommandBuffers.h" />
     <ClInclude Include="VulkanCommandPool.h" />

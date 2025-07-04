@@ -36,6 +36,34 @@ void AssetManager::cleanup()
     m_Textures.clear();
 }
 
+std::string AssetManager::getTextureMapTypeDefaultFilePath(TextureMap texType)
+{
+    if (texType == TextureMap::ALBEDO)
+    {
+        return "textures/defaults/default_albedo.png";
+    }
+    else if (texType == TextureMap::NORMAL)
+    {
+        return "textures/defaults/default_normal.png";
+    }
+    else if (texType == TextureMap::METAL_ROUGH)
+    {
+        return "textures/defaults/default_orm.png";;
+    }
+    else if (texType == TextureMap::AMBIENT_OCC)
+    {
+        return "textures/defaults/default_emissive.png";
+    }
+    else if (texType == TextureMap::EMISSIVE)
+    {
+        return "textures/defaults/default_emissive.png";
+    }
+    else
+    {
+        throw std::runtime_error("Invalid TextureMap ENUM");
+    }
+}
+
 //RenderableObject AssetManager::createRenderableObject(const SceneObjectDefinition& def)
 //{
 //    std::shared_ptr<MeshData> mesh = getMesh(def);
@@ -211,12 +239,13 @@ std::shared_ptr<ModelData> AssetManager::loadGltfModel(const std::string& path)
         m_pDevice->getLogicalDevice(),
         m_pDevice->getPhysicalDevice(),
         m_pDevice->getGraphicsQueue(),
-        m_pCommandPool->getVkCommandPool()
+        m_pCommandPool->getVkCommandPool()    
     );
 
     auto modelData = std::make_shared<ModelData>();
     modelData->materials = std::move(gltfResult.materials);
     modelData->meshMaterialIndices = std::move(gltfResult.meshMaterialIndices);
+    modelData->meshWorldMatrices = std::move(gltfResult.meshWorldMatrices);
 
     for (const auto& material : modelData->materials)
     {
@@ -251,6 +280,21 @@ std::shared_ptr<ModelData> AssetManager::loadGltfModel(const std::string& path)
         modelData->meshes.push_back(std::move(meshData));
     }
 
+    // de-duplication and caching for materials
+    for (size_t i = 0; i < modelData->materials.size(); ++i) {
+        std::shared_ptr<Material>& mat = modelData->materials[i];
+
+        if (m_Materials.count(mat->name)) {
+            // A material with this name already exists in the cache.
+            // Replace the pointer in our local list with the one from the cache.
+            mat = m_Materials.at(mat->name);
+        }
+        else {
+            // This is a brand new material. Add it to the cache.
+            m_Materials[mat->name] = mat;
+        }
+    }
+
     m_Models[path] = modelData;
     return modelData;
 }
@@ -259,6 +303,13 @@ std::vector<RenderableObject> AssetManager::createRenderableObjectsFromGltf(cons
 {
     auto modelData = loadGltfModel(def.meshPath);
     std::vector<RenderableObject> renderables;
+    glm::mat4 globalObjectTransform = glm::mat4(1.0f);
+    globalObjectTransform = glm::translate(globalObjectTransform, def.position);
+    globalObjectTransform = glm::rotate(globalObjectTransform, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
+    globalObjectTransform = glm::rotate(globalObjectTransform, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    globalObjectTransform = glm::rotate(globalObjectTransform, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    globalObjectTransform = glm::scale(globalObjectTransform, def.scale);
+
     for (size_t i = 0; i < modelData->meshes.size(); ++i)
     {
         RenderableObject renderable{};
@@ -268,18 +319,66 @@ std::vector<RenderableObject> AssetManager::createRenderableObjectsFromGltf(cons
 
         int materialIndex = modelData->meshMaterialIndices[i];
         renderable.material = modelData->materials[materialIndex];
+        if (!renderable.material->albedoMap)
+        {
+            //std::cout << "Loading default texture for gltf albedo" << std::endl;
+            renderable.material->albedoMap = getOrLoadTexture(getTextureMapTypeDefaultFilePath(TextureMap::ALBEDO), true);
+        }
+        if (!renderable.material->normalMap)
+        {
+            //std::cout << "Loading default texture for gltf normal" << std::endl;
+            renderable.material->normalMap = getOrLoadTexture(getTextureMapTypeDefaultFilePath(TextureMap::NORMAL));
+        }
+        if (!renderable.material->metallicRoughnessMap)
+        {
+            //std::cout << "Loading default texture for gltf metallic roughness" << std::endl;
+            renderable.material->metallicRoughnessMap = getOrLoadTexture(getTextureMapTypeDefaultFilePath(TextureMap::METAL_ROUGH));
+        }
+        if (!renderable.material->occlusionMap)
+        {
+            //std::cout << "Loading default texture for gltf occlusion" << std::endl;
+            renderable.material->occlusionMap = getOrLoadTexture(getTextureMapTypeDefaultFilePath(TextureMap::AMBIENT_OCC));
+        }
+        if (!renderable.material->emissiveMap)
+        {
+            //std::cout << "Loading default texture for gltf emissive" << std::endl;
+            renderable.material->emissiveMap = getOrLoadTexture(getTextureMapTypeDefaultFilePath(TextureMap::EMISSIVE), true);
+        }
 
-        // applying transformations here (maybe i'll handle them elsewhere later)
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, def.position);
-        model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
-        model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::scale(model, def.scale);
-        renderable.modelMatrix = model;
+        //// applying transformations here (maybe i'll handle them elsewhere later)
+        //glm::mat4 model = glm::mat4(1.0f);
+        //model = glm::translate(model, def.position);
+        //model = glm::rotate(model, glm::radians(def.rotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        //model = glm::rotate(model, glm::radians(def.rotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        //model = glm::rotate(model, glm::radians(def.rotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        //model = glm::scale(model, def.scale);
+        //renderable.modelMatrix = model;
+        renderable.modelMatrix = globalObjectTransform * modelData->meshWorldMatrices[i];
 
         renderables.push_back(renderable);
     }
 
     return renderables;
+}
+
+std::shared_ptr<VulkanTexture> AssetManager::getOrLoadTexture(const std::string& path, bool sRGB)
+{
+    if (m_Textures.count(path)) {
+        return m_Textures.at(path);
+    }
+
+    // Otherwise, load it, cache it, and return it
+    std::cout << "Loading new texture: " << path << std::endl;
+    auto newTexture = std::make_shared<VulkanTexture>();
+    newTexture->createTexture2D(
+        m_pDevice->getLogicalDevice(),
+        m_pDevice->getPhysicalDevice(),
+        m_pDevice->getGraphicsQueue(),
+        m_pCommandPool->getVkCommandPool(),
+        path,
+        sRGB
+    );
+
+    m_Textures[path] = newTexture;
+    return newTexture;
 }

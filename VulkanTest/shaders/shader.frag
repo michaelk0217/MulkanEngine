@@ -114,18 +114,20 @@ void main() {
     float metallic = material.metallicFactor;
     float roughness = material.roughnessFactor;
     float ao = 1.0;
+    // vec4 orm = vec4(1.0, 0.5, 0.0, 1.0);
     if (material.hasMetallicRoughnessMap == 1)
     {
         vec4 mr = texture(metallicRoughnessMap, inTexCoord);
         roughness *= mr.g;
         metallic *= mr.b;
-        ao = mr.r;
+        // ao = mr.r;
 
     }
     if (material.hasOcclusionMap == 1) // override if there is occlusion map
     {
         ao = texture(occlusionMap, inTexCoord).r; 
     }
+  
     
     vec3 emission = material.emissiveFactor.rgb;
     if (material.hasEmissiveMap == 1)

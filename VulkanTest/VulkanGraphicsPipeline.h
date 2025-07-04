@@ -23,7 +23,8 @@ public:
 		//const std::string& tescShaderPath, 
 		//const std::string& teseShaderPath,
 		VkPolygonMode polygoneMode,
-		VkCullModeFlagBits cullMode = VK_CULL_MODE_BACK_BIT
+		VkCullModeFlagBits cullMode,
+		VkFrontFace frontFace
 	);
 
 	void createSkybox(

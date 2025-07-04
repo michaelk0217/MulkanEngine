@@ -70,7 +70,7 @@ struct RenderPacket {
     std::vector<RenderableObject> pbrRenderables;
     VkDeviceSize dynamicUboAlignment;
     VkPipeline pbrPipeline;
-    VkPipeline pbrPipeline_doubleSided;
+    //VkPipeline pbrPipeline_doubleSided;
     VkPipelineLayout pbrLayout;
 
     std::optional<SkyboxData> skyboxData;

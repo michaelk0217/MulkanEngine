@@ -85,9 +85,10 @@ void VulkanDescriptorSets::createForMaterials(
 	const std::vector<VkBuffer> frameUboBuffers, const std::vector<VkBuffer> objectDUBuffers, 
 	const std::vector<VkBuffer> lightingUboBuffers, const std::vector<VkBuffer> materialDataUboBuffers,
 	std::map<std::string, std::shared_ptr<Material>>& materials,
-	IblPacket iblPacket)
+	IblPacket iblPacket,
+	size_t materialUboAlignedStride)
 {
-	this->device = device;
+	//this->device = device;
 	int materialIndex = 0;
 	for (auto& pair : materials)
 	{
@@ -107,6 +108,10 @@ void VulkanDescriptorSets::createForMaterials(
 		{
 			throw std::runtime_error("failed to allocate descriptor sets for a material: " + material->name);
 		}
+
+		// --- ADD THIS LINE FOR DEBUGGING ---
+		//std::cout << "  > Allocated handle for frame 0: " << material->frameSpecificDescriptorSets[0] << std::endl;
+		// ------------------------------------
 
 		for (size_t i = 0; i < numFrames; i++)
 		{
@@ -128,7 +133,7 @@ void VulkanDescriptorSets::createForMaterials(
 
 			VkDescriptorBufferInfo materialDataBufferInfo{};
 			materialDataBufferInfo.buffer = materialDataUboBuffers[i];
-			materialDataBufferInfo.offset = static_cast<VkDeviceSize>(materialIndex * sizeof(MaterialUBO));
+			materialDataBufferInfo.offset = static_cast<VkDeviceSize>(materialIndex * materialUboAlignedStride);
 			materialDataBufferInfo.range = sizeof(MaterialUBO);
 
 			VkDescriptorImageInfo albedoMapImageInfo{};

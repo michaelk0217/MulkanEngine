@@ -19,7 +19,8 @@ void VulkanGraphicsPipeline::create(
 	//const std::string& tescShaderPath, 
 	//const std::string& teseShaderPath,
 	VkPolygonMode polygonMode,
-	VkCullModeFlagBits cullMode
+	VkCullModeFlagBits cullMode,
+	VkFrontFace frontFace
 )
 {
 	device = vkDevice;
@@ -94,7 +95,7 @@ void VulkanGraphicsPipeline::create(
 	rasterizer.polygonMode = polygonMode;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = cullMode;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; // to counter the Y-Flip from GLM, after the Y-Flip, it would practically be counter clockwise.
+	rasterizer.frontFace = frontFace; // to counter the Y-Flip from GLM, after the Y-Flip, it would practically be counter clockwise.
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f;
 	rasterizer.depthBiasClamp = 0.0f;

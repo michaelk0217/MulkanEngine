@@ -7,6 +7,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
+
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
 #include <vector>
@@ -14,6 +15,7 @@
 #include <iostream>
 #include "Material.h"
 #include "VulkanTexture.h"
+
 
 
 void ModelLoader::loadModel(const std::string& path, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
@@ -533,7 +535,7 @@ GltfLoadResult ModelLoader::loadGLTFModelWithMaterials(const std::string& path, 
 	}
 
 	GltfLoadResult result;
-
+	
 	// --- 1. Load Textures ---
 	result.textures.resize(model.textures.size());
 	for (size_t i = 0; i < model.textures.size(); ++i) {
@@ -655,7 +657,69 @@ GltfLoadResult ModelLoader::loadGLTFModelWithMaterials(const std::string& path, 
 		}
 	}
 
+	const auto& meshes = model.meshes;
+	result.meshWorldMatrices.resize(meshes.size(), glm::mat4(1.0f));
+
+	const tinygltf::Scene& scene = model.scenes[model.defaultScene > -1 ? model.defaultScene : 0];
+	for (int nodeIndex : scene.nodes)
+	{
+		processNode(model, model.nodes[nodeIndex], glm::mat4(1.0f), result);
+	}
 	return result;
+}
+
+void ModelLoader::processNode(const tinygltf::Model& model, const tinygltf::Node& node, const glm::mat4& parentTransform, GltfLoadResult& result)
+{
+	glm::mat4 localTransform = glm::mat4(1.0f);
+	if (node.matrix.size() == 16)
+	{
+		localTransform = glm::make_mat4(node.matrix.data());
+	}
+	else
+	{
+		glm::mat4 t = glm::mat4(1.0f);
+		glm::mat4 r = glm::mat4(1.0f);
+		glm::mat4 s = glm::mat4(1.0f);
+		if (node.translation.size() == 3)
+		{
+			t = glm::translate(localTransform, glm::vec3(
+				static_cast<float>(node.translation[0]),
+				static_cast<float>(node.translation[1]),
+				static_cast<float>(node.translation[2])
+			));
+		}
+		if (node.rotation.size() == 4)
+		{
+			glm::quat q(
+				static_cast<float>(node.rotation[3]), // w
+				static_cast<float>(node.rotation[0]), // x
+				static_cast<float>(node.rotation[1]), // y
+				static_cast<float>(node.rotation[2]) // z
+			);
+			r = glm::mat4_cast(q);
+		}
+		if (node.scale.size() == 3)
+		{
+			s = glm::scale(localTransform, glm::vec3(
+				static_cast<float>(node.scale[0]),
+				static_cast<float>(node.scale[1]),
+				static_cast<float>(node.scale[2])
+			));
+		}
+		localTransform = t * r * s;
+	}
+
+	glm::mat4 globalTransform = parentTransform * localTransform;
+
+	if (node.mesh > -1)
+	{
+		result.meshWorldMatrices[node.mesh] = globalTransform;
+	}
+
+	for (int childIndex : node.children)
+	{
+		processNode(model, model.nodes[childIndex], globalTransform, result);
+	}
 }
 
 std::shared_ptr<VulkanTexture> ModelLoader::loadGltfTexture(
@@ -722,7 +786,8 @@ std::shared_ptr<Material> ModelLoader::createMaterialFromGltf(
 )
 {
 	auto material = std::make_shared<Material>();
-	material->name = gltfMaterial.name.empty() ? "Unnamed_Materal" : gltfMaterial.name;
+	std::string localMatName = gltfMaterial.name.empty() ? "Unnamed_Materal" : gltfMaterial.name;
+	material->name = modelPath + "::" + localMatName;
 	//material->gltfSourceFile = modelPath;
 
 	// Base Color (albedo)
@@ -776,47 +841,17 @@ std::shared_ptr<Material> ModelLoader::createMaterialFromGltf(
 	//	std::cout << "Loading default texture for gltf normal" << std::endl;
 	//	material->normalMap = loadDefaultTexture("normal", device, physicalDevice, graphicsQueue, commandPool);
 	//}
-	//if (!material->ormMap) {
-	//	std::cout << "Loading default texture for gltf orm" << std::endl;
-	//	material->ormMap = loadDefaultTexture("orm", device, physicalDevice, graphicsQueue, commandPool);
-	//	material->useOrm = false; // Set to false if we are using the default
+	//if (!material->metallicRoughnessMap) {
+	//	std::cout << "Loading default texture for gltf metallic roughness" << std::endl;
+	//	material->metallicRoughnessMap = loadDefaultTexture("metallicRoughness", device, physicalDevice, graphicsQueue, commandPool);
 	//}
-	//if (!material->aoMap) {
+	//if (!material->occlusionMap) {
 	//	std::cout << "Loading default texture for gltf ao" << std::endl;
-	//	material->aoMap = loadDefaultTexture("ao", device, physicalDevice, graphicsQueue, commandPool);
+	//	material->occlusionMap = loadDefaultTexture("ao", device, physicalDevice, graphicsQueue, commandPool);
 	//}
 	//if (!material->emissiveMap) {
 	//	std::cout << "Loading default texture for gltf emissive" << std::endl;
 	//	material->emissiveMap = loadDefaultTexture("emissive", device, physicalDevice, graphicsQueue, commandPool);
-	//}
-	//if (!material->roughnessMap/* && !material->useOrm*/)
-	//{
-	//	std::cout << "Loading default texture for gltf roughness" << std::endl;
-	//	material->roughnessMap = loadDefaultTexture("roughness", device, physicalDevice, graphicsQueue, commandPool);
-	//}
-	//if (!material->metallnessMap/* && !material->useOrm*/)
-	//{
-	//	std::cout << "Loading default texture for gltf metalness" << std::endl;
-	//	material->metallnessMap = loadDefaultTexture("metalness", device, physicalDevice, graphicsQueue, commandPool);
-	//}
-	//if (!material->displacementMap)
-	//{
-	//	std::cout << "Loading default texture for gltf displacement" << std::endl;
-	//	material->displacementMap = loadDefaultTexture("displacement", device, physicalDevice, graphicsQueue, commandPool);
-	//}
-
-	//// material properties
-	//if (gltfMaterial.alphaMode == "OPAQUE")
-	//{
-	//	material->alphaMode = Material::AlphaMode::OPAQUE_MODE;
-	//}
-	//else if (gltfMaterial.alphaMode == "MASK")
-	//{
-	//	material->alphaMode = Material::AlphaMode::MASK_MODE;
-	//}
-	//else if (gltfMaterial.alphaMode == "BLEND")
-	//{
-	//	material->alphaMode = Material::AlphaMode::BLEND_MODE;
 	//}
 
 	//material->alphaCutoff = static_cast<float>(gltfMaterial.alphaCutoff);
@@ -824,7 +859,7 @@ std::shared_ptr<Material> ModelLoader::createMaterialFromGltf(
 	// ----------- TODO : DEBUG doublesided ---------------
 	material->doubleSided = gltfMaterial.doubleSided;
 	//std::cout << "Double sided: " << gltfMaterial.doubleSided << std::endl;
-	material->doubleSided = true;
+	//material->doubleSided = true;
 
 	return material;
 }

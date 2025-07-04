@@ -101,6 +101,7 @@ struct GltfLoadResult
 	std::vector<std::shared_ptr<Material>> materials;
 	std::vector<int> meshMaterialIndices;
 	std::vector<std::shared_ptr<VulkanTexture>> textures;
+	std::vector<glm::mat4> meshWorldMatrices;
 };
 
 class ModelLoader
@@ -121,6 +122,13 @@ public:
 		VkPhysicalDevice physicalDevice,
 		VkQueue graphicsQueue,
 		VkCommandPool commandPool
+	);
+
+	static void processNode(
+		const tinygltf::Model& model,
+		const tinygltf::Node& node,
+		const glm::mat4& parentTransform,
+		GltfLoadResult& result
 	);
 
 private:

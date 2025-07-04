@@ -73,17 +73,17 @@ void VulkanRenderer::recordSceneCommands(
     }
 
     // --- draw pbr objects ---
-    
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, packet.pbrPipeline);
+
     for (uint32_t i = 0; i < packet.pbrRenderables.size(); i++)
     {
         const auto& renderable = packet.pbrRenderables[i];
 
         if (!renderable.vertexBuffer || !renderable.indexBuffer) continue; // skip
 
-        VkPipeline pipelineToUse = renderable.material->doubleSided
+     /*   VkPipeline pipelineToUse = renderable.material->doubleSided
             ? packet.pbrPipeline_doubleSided
-            : packet.pbrPipeline;
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineToUse);
+            : packet.pbrPipeline;*/
 
         VkBuffer vertexBuffers[] = { renderable.vertexBuffer->getVkBuffer() };
         VkDeviceSize offsets[] = { 0 };
@@ -94,6 +94,12 @@ void VulkanRenderer::recordSceneCommands(
         uint32_t dynamicOffset = i * static_cast<uint32_t>(packet.dynamicUboAlignment);
 
         VkDescriptorSet materialDescriptorSet = renderable.material->frameSpecificDescriptorSets[currentFrameIndex];
+        
+        // --- ADD THIS LINE FOR DEBUGGING ---
+        //if (materialDescriptorSet == VK_NULL_HANDLE) {
+        //    std::cout << "!! ERROR: Binding NULL descriptor set for material: " << renderable.material->name << std::endl;
+        //}
+        // -----------------------------------
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, packet.pbrLayout,
             0, 1, &materialDescriptorSet,

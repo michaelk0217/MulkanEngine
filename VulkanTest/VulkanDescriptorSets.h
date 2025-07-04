@@ -31,7 +31,7 @@ public:
 				const std::vector<VkBuffer>& objectDUBuffers,
 				VkImageView textureImageView, VkSampler textureSampler);
 
-	void createForMaterials(
+	static void createForMaterials(
 		VkDevice device,
 		VkDescriptorPool descriptorPool,
 		VkDescriptorSetLayout descriptorSetLayout,
@@ -42,7 +42,8 @@ public:
 		//const std::vector<VkBuffer> tessUboBuffers,
 		const std::vector<VkBuffer> materialDataUboBuffers,
 		std::map<std::string, std::shared_ptr<Material>>& materials,
-		IblPacket iblPacket
+		IblPacket iblPacket,
+		size_t materialUboAlignedStride
 	);
 
 	void createForSkybox(

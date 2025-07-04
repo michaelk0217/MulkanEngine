@@ -11,63 +11,98 @@ VulkanUniformBuffers::~VulkanUniformBuffers()
 	destroy();
 }
 
+//void VulkanUniformBuffers::create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames,
+//									VkDeviceSize totalBufferSize,
+//										bool isDynamic)
+//{
+//	device = vkdevice;
+//	frameCount = numFrames;
+//	this->isDynamic = isDynamic;
+//	this->bufferSize = totalBufferSize;
+//
+//	//VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
+//
+//	VkPhysicalDeviceProperties properties;
+//	vkGetPhysicalDeviceProperties(vkphysdevice, &properties);
+//	dynamicAlignment = properties.limits.minUniformBufferOffsetAlignment;
+//
+//	uniformBuffers.resize(frameCount);
+//	uniformBuffersMemory.resize(frameCount);
+//	uniformBuffersMapped.resize(frameCount);
+//
+//	if (isDynamic)
+//	{
+//		for (size_t i = 0; i < frameCount; i++)
+//		{
+//			VulkanBuffer::createBuffer(
+//				device,
+//				vkphysdevice,
+//				totalBufferSize,
+//				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+//				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+//				uniformBuffers[i],
+//				uniformBuffersMemory[i]
+//			);
+//
+//			vkMapMemory(device, uniformBuffersMemory[i], 0, totalBufferSize, 0, &uniformBuffersMapped[i]);
+//		}
+//	}
+//	else
+//	{
+//		VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
+//		for (size_t i = 0; i < frameCount; i++)
+//		{
+//
+//			VulkanBuffer::createBuffer(
+//				device,
+//				vkphysdevice,
+//				bufferSize,
+//				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+//				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+//				uniformBuffers[i],
+//				uniformBuffersMemory[i]
+//			);
+//
+//			vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+//		}
+//	}
+//
+//	
+//}
+
 void VulkanUniformBuffers::create(VkDevice vkdevice, VkPhysicalDevice vkphysdevice, uint32_t numFrames,
-									VkDeviceSize totalBufferSize,
-										bool isDynamic)
+	VkDeviceSize perFrameBufferSize, bool isDynamic)
 {
 	device = vkdevice;
 	frameCount = numFrames;
 	this->isDynamic = isDynamic;
-	this->bufferSize = totalBufferSize;
+	this->bufferSize = perFrameBufferSize; // Store the size of a single frame's data
 
-	//VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
-
-	VkPhysicalDeviceProperties properties;
-	vkGetPhysicalDeviceProperties(vkphysdevice, &properties);
-	dynamicAlignment = properties.limits.minUniformBufferOffsetAlignment;
+	if (isDynamic)
+	{
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(vkphysdevice, &properties);
+		dynamicAlignment = properties.limits.minUniformBufferOffsetAlignment;
+	}
 
 	uniformBuffers.resize(frameCount);
 	uniformBuffersMemory.resize(frameCount);
 	uniformBuffersMapped.resize(frameCount);
 
-	if (isDynamic)
+	for (size_t i = 0; i < frameCount; i++)
 	{
-		for (size_t i = 0; i < frameCount; i++)
-		{
-			VulkanBuffer::createBuffer(
-				device,
-				vkphysdevice,
-				totalBufferSize,
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				uniformBuffers[i],
-				uniformBuffersMemory[i]
-			);
+		VulkanBuffer::createBuffer(
+			device,
+			vkphysdevice,
+			bufferSize, // CORRECT: Always use the passed-in size
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			uniformBuffers[i],
+			uniformBuffersMemory[i]
+		);
 
-			vkMapMemory(device, uniformBuffersMemory[i], 0, totalBufferSize, 0, &uniformBuffersMapped[i]);
-		}
+		vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
 	}
-	else
-	{
-		VkDeviceSize bufferSize = sizeof(FrameUniformBufferObject);
-		for (size_t i = 0; i < frameCount; i++)
-		{
-
-			VulkanBuffer::createBuffer(
-				device,
-				vkphysdevice,
-				bufferSize,
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				uniformBuffers[i],
-				uniformBuffersMemory[i]
-			);
-
-			vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
-		}
-	}
-
-	
 }
 
 void VulkanUniformBuffers::destroy()

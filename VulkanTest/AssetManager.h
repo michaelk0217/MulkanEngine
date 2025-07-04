@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "VulkanDevice.h"
 #include "VulkanCommandPool.h"
@@ -25,11 +26,20 @@ struct ModelData
 	std::vector<MeshData> meshes;
 	std::vector<std::shared_ptr<Material>> materials;
 	std::vector<int> meshMaterialIndices; // which material each mesh uses
+	std::vector<glm::mat4> meshWorldMatrices; // transform for each mesh
 };
 
 class AssetManager
 {
 public:
+	enum class TextureMap {
+		ALBEDO,
+		NORMAL,
+		METAL_ROUGH,
+		AMBIENT_OCC,
+		EMISSIVE
+	};
+
 	AssetManager(VulkanDevice* device, VulkanCommandPool* commandPool);
 	~AssetManager();
 
@@ -49,6 +59,9 @@ public:
 		const SceneObjectDefinition& def
 	);
 
+	std::shared_ptr<VulkanTexture> getOrLoadTexture(const std::string& path, bool sRGB = false);
+private:
+
 	void cleanup();
 private:
 	// Private helper methods that implement the caching logic.
@@ -65,4 +78,6 @@ private:
 	std::map<std::string, std::shared_ptr<Material>> m_Materials;
 	std::map<std::string, std::shared_ptr<VulkanTexture>> m_Textures;
 	std::map<std::string, std::shared_ptr<ModelData>> m_Models;
+
+	std::string getTextureMapTypeDefaultFilePath(TextureMap texType);
 };

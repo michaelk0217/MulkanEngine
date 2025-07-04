@@ -2,13 +2,14 @@
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 #include <array>
+#include <vector>
 class VulkanDescriptorPool
 {
 public:
 	VulkanDescriptorPool();
 	~VulkanDescriptorPool();
 
-	void create(VkDevice vkdevice, uint32_t maxFramesInFlight, uint32_t objectCount);
+	void create(VkDevice vkdevice, uint32_t maxSets, const std::vector<VkDescriptorPoolSize>& poolSizes);
 	void destroy();
 
 	VkDescriptorPool getVkDescriptorPool() const;
